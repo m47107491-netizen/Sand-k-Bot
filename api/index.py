@@ -1,4 +1,17 @@
 from http.server import BaseHTTPRequestHandler
+import json
+
+# Botunuzdan gelecek canlı veriyi tutacak yapı (Botunuz burayı güncelleyecek)
+LIVE_DATA = {
+    "stats": {
+        "coins": 0,
+        "boxes": 0,
+        "channels": 0,
+        "status": "Aktif ⚡"
+    },
+    "boxes": [], # Bot sandık buldukça buraya dict formatında ekleyecek
+    "logs": ["[SİSTEM] WebApp canlı veri modunda başlatıldı."]
+}
 
 HTML_CONTENT = """<!DOCTYPE html>
 <html lang="tr">
@@ -6,7 +19,6 @@ HTML_CONTENT = """<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Sandık Bot Yönetim Paneli</title>
-    <!-- Telegram Web App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root {
@@ -16,7 +28,6 @@ HTML_CONTENT = """<!DOCTYPE html>
             --text-main: #ffffff;
             --text-sub: #a0a0a0;
             --accent-green: #8cc653;
-            --accent-green-hover: #7ab543;
             --accent-red: #e53935;
             --accent-blue: #29b6f6;
             --accent-orange: #ff9800;
@@ -42,7 +53,6 @@ HTML_CONTENT = """<!DOCTYPE html>
             min-height: 100vh;
         }
 
-        /* Kart Yapıları */
         .card {
             background-color: var(--card-bg);
             border: 1px solid var(--card-border);
@@ -62,24 +72,15 @@ HTML_CONTENT = """<!DOCTYPE html>
             font-weight: 700;
         }
 
-        .card-title {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
+        .card-title { display: flex; align-items: center; gap: 8px; }
 
-        /* Kullanıcı Profil Kartı & Ping Badge */
         .user-profile {
             display: flex;
             align-items: center;
             justify-content: space-between;
         }
 
-        .user-meta {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
+        .user-meta { display: flex; align-items: center; gap: 12px; }
 
         .avatar {
             width: 44px;
@@ -111,8 +112,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         }
 
         .pulse-dot {
-            width: 6px;
-            height: 6px;
+            width: 6px; height: 6px;
             background-color: var(--accent-green);
             border-radius: 50%;
             animation: pulse 1.5s infinite;
@@ -124,7 +124,6 @@ HTML_CONTENT = """<!DOCTYPE html>
             100% { transform: scale(0.95); opacity: 0.7; }
         }
 
-        /* 📊 İstatistik Grid */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -144,7 +143,6 @@ HTML_CONTENT = """<!DOCTYPE html>
         .stat-label { font-size: 0.75rem; color: var(--text-sub); }
         .stat-value { font-size: 1.15rem; font-weight: 700; color: var(--accent-green); }
 
-        /* 🎛 Kontrol & Filtre Alanı */
         .setting-item {
             display: flex;
             align-items: center;
@@ -165,36 +163,19 @@ HTML_CONTENT = """<!DOCTYPE html>
             font-size: 0.9rem;
         }
 
-        /* Switch Toggle */
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 44px;
-            height: 24px;
-        }
-
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
         .switch input { opacity: 0; width: 0; height: 0; }
-
         .slider {
-            position: absolute; cursor: pointer;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #333;
-            transition: .3s;
-            border-radius: 24px;
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #333; transition: .3s; border-radius: 24px;
         }
-
         .slider:before {
-            position: absolute; content: "";
-            height: 18px; width: 18px; left: 3px; bottom: 3px;
-            background-color: white;
-            transition: .3s;
-            border-radius: 50%;
+            position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px;
+            background-color: white; transition: .3s; border-radius: 50%;
         }
-
         input:checked + .slider { background-color: var(--accent-green); }
         input:checked + .slider:before { transform: translateX(20px); }
 
-        /* 🎁 Canlı Sandık Kartı */
         .box-item {
             display: flex;
             flex-direction: column;
@@ -206,21 +187,13 @@ HTML_CONTENT = """<!DOCTYPE html>
             border-radius: 10px;
         }
 
-        .box-top {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
+        .box-top { display: flex; align-items: center; justify-content: space-between; }
         .box-user { font-weight: 700; font-size: 0.95rem; color: #fff; }
         .box-coins { color: var(--accent-green); font-weight: 700; font-size: 0.9rem; }
 
         .box-timer-bar {
-            width: 100%;
-            height: 4px;
-            background: #333;
-            border-radius: 2px;
-            overflow: hidden;
+            width: 100%; height: 4px; background: #333;
+            border-radius: 2px; overflow: hidden;
         }
 
         .box-progress {
@@ -230,19 +203,8 @@ HTML_CONTENT = """<!DOCTYPE html>
             transition: width 1s linear;
         }
 
-        .box-bottom {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            font-size: 0.8rem;
-        }
-
-        .countdown-text {
-            font-family: monospace;
-            font-size: 0.9rem;
-            color: var(--accent-orange);
-            font-weight: bold;
-        }
+        .box-bottom { display: flex; align-items: center; justify-content: space-between; font-size: 0.8rem; }
+        .countdown-text { font-family: monospace; font-size: 0.9rem; color: var(--accent-orange); font-weight: bold; }
 
         .btn-link {
             background-color: rgba(41, 182, 246, 0.15);
@@ -254,45 +216,17 @@ HTML_CONTENT = """<!DOCTYPE html>
             font-weight: 600;
         }
 
-        /* ➕ Yayıncı Ekleme Alani */
-        .add-user-box {
-            display: flex;
-            gap: 8px;
-        }
-
+        .add-user-box { display: flex; gap: 8px; }
         .input-text {
-            flex: 1;
-            background: #222;
-            border: 1px solid var(--card-border);
-            color: #fff;
-            padding: 8px 12px;
-            border-radius: 8px;
-            font-size: 0.85rem;
+            flex: 1; background: #222; border: 1px solid var(--card-border);
+            color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 0.85rem;
         }
+        .btn-add { background: var(--accent-green); color: #000; border: none; padding: 0 14px; border-radius: 8px; font-weight: bold; cursor: pointer; }
 
-        .btn-add {
-            background: var(--accent-green);
-            color: #000;
-            border: none;
-            padding: 0 14px;
-            border-radius: 8px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        /* 📋 Log Konsolu */
         .log-console {
-            background: #000;
-            border-radius: 8px;
-            padding: 10px;
-            font-family: monospace;
-            font-size: 0.75rem;
-            color: #76ff03;
-            max-height: 110px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
+            background: #000; border-radius: 8px; padding: 10px;
+            font-family: monospace; font-size: 0.75rem; color: #76ff03;
+            max-height: 110px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;
         }
 
         .btn-group { display: flex; gap: 10px; margin-top: 4px; }
@@ -307,44 +241,41 @@ HTML_CONTENT = """<!DOCTYPE html>
 </head>
 <body>
 
-    <!-- 1. Kullanıcı & Canlı Ping Durumu -->
     <div class="card">
         <div class="user-profile">
             <div class="user-meta">
-                <div class="avatar" id="avatar-char">B</div>
+                <div class="avatar" id="avatar-char">?</div>
                 <div class="user-info">
-                    <div class="name" id="user-name">BBRxPhantom</div>
-                    <div class="id">ID: <span id="user-id">8834664265</span></div>
+                    <div class="name" id="user-name">Yükleniyor...</div>
+                    <div class="id">ID: <span id="user-id">-</span></div>
                 </div>
             </div>
             <div class="ping-badge">
                 <div class="pulse-dot"></div>
-                <span id="ping-text">14ms</span>
+                <span id="ping-text">--ms</span>
             </div>
         </div>
     </div>
 
-    <!-- 2. Canlı İstatistikler -->
     <div class="stats-grid">
         <div class="stat-box">
             <span class="stat-label">Bugün Tahmini</span>
-            <span class="stat-value" id="stat-coins">14,250 🪙</span>
+            <span class="stat-value" id="stat-coins">0 🪙</span>
         </div>
         <div class="stat-box">
             <span class="stat-label">Yakalanan Sandık</span>
-            <span class="stat-value" id="stat-boxes">38 Adet</span>
+            <span class="stat-value" id="stat-boxes">0 Adet</span>
         </div>
         <div class="stat-box">
             <span class="stat-label">Aktif Taranan</span>
-            <span class="stat-value" style="color: var(--accent-blue);" id="stat-channels">12 Yayıncı</span>
+            <span class="stat-value" style="color: var(--accent-blue);" id="stat-channels">0 Yayıncı</span>
         </div>
         <div class="stat-box">
             <span class="stat-label">Bot Durumu</span>
-            <span class="stat-value" id="stat-status">Aktif ⚡</span>
+            <span class="stat-value" id="stat-status">Bağlanıyor...</span>
         </div>
     </div>
 
-    <!-- 3. Otomasyon & Filtre Ayarları -->
     <div class="card">
         <div class="card-header">
             <div class="card-title">⚙️ Filtre & Otomasyon</div>
@@ -357,7 +288,7 @@ HTML_CONTENT = """<!DOCTYPE html>
             </label>
         </div>
         <div class="setting-item">
-            <span class="setting-label">Yeni Sandık Bip Sesi (Sesli Uyar)</span>
+            <span class="setting-label">Yeni Sandık Bip Sesi</span>
             <label class="switch">
                 <input type="checkbox" id="toggle-sound" checked>
                 <span class="slider"></span>
@@ -373,7 +304,6 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
     </div>
 
-    <!-- 4. ➕ VIP Yayıncı Ekleme Modülü -->
     <div class="card">
         <div class="card-header">
             <div class="card-title">🎯 VIP Yayıncı Ekle</div>
@@ -384,29 +314,23 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
     </div>
 
-    <!-- 5. ⏱️ CANLI GERİ SAYIMLI SANDIK LİSTESİ -->
     <div class="card">
         <div class="card-header">
             <div class="card-title">🎁 Aktif Sandıklar</div>
-            <span style="font-size: 0.75rem; color: var(--accent-green);" id="live-count">1 Canlı Sandık</span>
+            <span style="font-size: 0.75rem; color: var(--accent-green);" id="live-count">0 Sandık</span>
         </div>
         <div style="display: flex; flex-direction: column; gap: 10px;" id="box-container">
-            <!-- Örnek Canlı Sandık Kartı -->
+            <div style="text-align:center; color:#666; padding:10px; font-size:0.85rem;">Veriler bot üzerinden bekleniyor...</div>
         </div>
     </div>
 
-    <!-- 6. Canlı Konsol Logu -->
     <div class="card">
         <div class="card-header">
             <div class="card-title">📜 Sistem Logları</div>
         </div>
-        <div class="log-console" id="log-console">
-            <div>[17:05:12] Bot başlatıldı.</div>
-            <div>[17:08:44] @yayinici_ahmet -> 1000 Coin tespit edildi.</div>
-        </div>
+        <div class="log-console" id="log-console"></div>
     </div>
 
-    <!-- 7. Aksiyon Butonları -->
     <div class="btn-group">
         <button class="btn btn-green" onclick="refreshStats()">🔄 Yenile</button>
         <button class="btn btn-red" onclick="closeApp()">❌ Kapat</button>
@@ -416,13 +340,8 @@ HTML_CONTENT = """<!DOCTYPE html>
         const tg = window.Telegram.WebApp;
         tg.expand();
 
-        // 🟢 Örnek Canlı Veri Yapısı (Bot'tan Gelecek Veri)
-        let activeBoxes = [
-            { id: 1, user: "@yayinici_ahmet", coins: 1000, totalTime: 180, remainingTime: 135, url: "https://www.tiktok.com" },
-            { id: 2, user: "@canli_yayin_vip", coins: 2500, totalTime: 300, remainingTime: 45, url: "https://www.tiktok.com" }
-        ];
+        let activeBoxes = [];
 
-        // Telegram Kullanıcı Verilerini Alma
         if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
             const user = tg.initDataUnsafe.user;
             document.getElementById('user-name').innerText = user.first_name + (user.last_name ? ' ' + user.last_name : '');
@@ -430,33 +349,54 @@ HTML_CONTENT = """<!DOCTYPE html>
             document.getElementById('avatar-char').innerText = user.first_name.charAt(0).toUpperCase();
         }
 
-        // ⏱️ CANLI GERİ SAYIM MOTORU (Saniye Saniye)
-        setInterval(() => {
+        // 🔄 BOT API'SİNDEN CANLI VERİ ÇEKME (POLLING)
+        async function fetchLiveData() {
+            try {
+                const startTime = Date.now();
+                const res = await fetch('/api/data');
+                const ping = Date.now() - startTime;
+                document.getElementById('ping-text').innerText = `${ping}ms`;
+
+                if (res.ok) {
+                    const data = await res.json();
+                    
+                    // İstatistikleri Güncelle
+                    document.getElementById('stat-coins').innerText = `${data.stats.coins.toLocaleString()} 🪙`;
+                    document.getElementById('stat-boxes').innerText = `${data.stats.boxes} Adet`;
+                    document.getElementById('stat-channels').innerText = `${data.stats.channels} Yayıncı`;
+                    document.getElementById('stat-status').innerText = data.stats.status;
+
+                    // Eğer yeni sandık gelmişse bip çal
+                    if (data.boxes.length > activeBoxes.length) {
+                        playBeep();
+                    }
+
+                    activeBoxes = data.boxes;
+                    renderBoxes();
+                }
+            } catch (err) {
+                document.getElementById('ping-text').innerText = 'Çevrimdışı';
+            }
+        }
+
+        function renderBoxes() {
             const container = document.getElementById('box-container');
             container.innerHTML = "";
 
             if (activeBoxes.length === 0) {
-                container.innerHTML = `<div style="text-align:center; color:#666; padding:10px; font-size:0.85rem;">Aktif sandık bulunamadı...</div>`;
-                document.getElementById('live-count').innerText = "0 Canlı Sandık";
+                container.innerHTML = `<div style="text-align:center; color:#666; padding:10px; font-size:0.85rem;">Aktif sandık bulunamadı.</div>`;
+                document.getElementById('live-count').innerText = "0 Sandık";
                 return;
             }
 
-            document.getElementById('live-count').innerText = `${activeBoxes.length} Canlı Sandık`;
+            document.getElementById('live-count').innerText = `${activeBoxes.length} Sandık`;
 
-            activeBoxes.forEach((box, index) => {
-                if (box.remainingTime > 0) {
-                    box.remainingTime--;
-                } else {
-                    activeBoxes.splice(index, 1);
-                    addLog(`[SÜRE DOLDU] ${box.user} sandığı bitti.`);
-                    return;
-                }
-
+            activeBoxes.forEach((box) => {
                 const minutes = Math.floor(box.remainingTime / 60).toString().padStart(2, '0');
                 const seconds = (box.remainingTime % 60).toString().padStart(2, '0');
                 const progressPercent = (box.remainingTime / box.totalTime) * 100;
 
-                const boxHtml = `
+                container.innerHTML += `
                     <div class="box-item">
                         <div class="box-top">
                             <span class="box-user">${box.user}</span>
@@ -467,15 +407,26 @@ HTML_CONTENT = """<!DOCTYPE html>
                         </div>
                         <div class="box-bottom">
                             <span class="countdown-text">⏱️ Kalan: ${minutes}:${seconds}</span>
-                            <a href="${box.url}" target="_blank" class="btn-link">Yayına Git</a>
+                            <a href="${box.url || '#'}" target="_blank" class="btn-link">Yayına Git</a>
                         </div>
                     </div>
                 `;
-                container.innerHTML += boxHtml;
             });
+        }
+
+        // Yerel Saniye Sayacı
+        setInterval(() => {
+            activeBoxes.forEach((box, i) => {
+                if (box.remainingTime > 0) box.remainingTime--;
+                else activeBoxes.splice(i, 1);
+            });
+            renderBoxes();
         }, 1000);
 
-        // 🔊 Dahili Bip Sesli Uyarısı (Web Audio API)
+        // Her 3 saniyede bir Bot Sunucusundan Taze Veri İste
+        setInterval(fetchLiveData, 3000);
+        fetchLiveData();
+
         function playBeep() {
             if (!document.getElementById('toggle-sound').checked) return;
             try {
@@ -489,16 +440,14 @@ HTML_CONTENT = """<!DOCTYPE html>
             } catch (e) {}
         }
 
-        // 🎯 Yayıncı Ekleme Fonksiyonu
         function addTargetUser() {
             const input = document.getElementById('target-username');
             const username = input.value.trim();
             if (!username) return;
 
             if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-            
             tg.sendData(JSON.stringify({ action: "add_target", username: username }));
-            addLog(`[VIP EKLE] ${username} listeye eklendi.`);
+            addLog(`[VIP EKLE] ${username} bot talimatlarına eklendi.`);
             input.value = "";
         }
 
@@ -508,22 +457,18 @@ HTML_CONTENT = """<!DOCTYPE html>
             const minRatio = document.getElementById('min-ratio').value;
 
             if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
-
             tg.sendData(JSON.stringify({
                 action: "update_settings",
                 auto_claim: autoClaim,
                 min_coin: parseInt(minCoin),
                 min_ratio: parseFloat(minRatio)
             }));
-            addLog(`Ayarlar güncellendi: Min ${minCoin} Coin`);
+            addLog(`Filtre güncellendi: Min ${minCoin} Coin`);
         }
 
         function refreshStats() {
             if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-            addLog("İstatistikler yenilendi.");
-            // Örnek Test için Yeni Sandık Düşürme Sesi Çal
-            playBeep();
-            tg.sendData(JSON.stringify({ action: "refresh_stats" }));
+            fetchLiveData();
         }
 
         function closeApp() { tg.close(); }
@@ -534,19 +479,19 @@ HTML_CONTENT = """<!DOCTYPE html>
             consoleEl.innerHTML += `<div>[${time}] ${message}</div>`;
             consoleEl.scrollTop = consoleEl.scrollHeight;
         }
-
-        // Ping Güncelleme Simülasyonu
-        setInterval(() => {
-            const randomPing = Math.floor(Math.random() * 10) + 12;
-            document.getElementById('ping-text').innerText = `${randomPing}ms`;
-        }, 4000);
     </script>
 </body>
 </html>"""
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html; charset=utf-8')
-        self.end_headers()
-        self.wfile.write(HTML_CONTENT.encode('utf-8'))
+        if self.path == '/api/data':
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps(LIVE_DATA).encode('utf-8'))
+        else:
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(HTML_CONTENT.encode('utf-8'))
