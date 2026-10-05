@@ -2,14 +2,13 @@ import os
 import json
 import sqlite3
 import asyncio
-from http.server import BaseHTTPRequestHandler
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
 # --- AYARLAR VE ENVIRONMENT VARIABLES ---
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 
-# Sizin belirttiğiniz Telegram ID: 8834664265
+# Sizin Telegram ID'niz
 DEFAULT_ADMIN = "8834664265"
 ADMIN_IDS = [int(x.strip()) for x in os.environ.get("ADMIN_IDS", DEFAULT_ADMIN).split(",") if x.strip()]
 
@@ -19,8 +18,6 @@ DB_PATH = "/tmp/sandik.db" if os.path.exists("/tmp") else "sandik.db"
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
-    # Kullanıcılar Tablosu
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY,
@@ -29,8 +26,6 @@ def init_db():
         sandik_count INTEGER DEFAULT 0
     )
     """)
-    
-    # Günlük Aktivite Tablosu (Doğru Primary Key Yapısı)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS daily_user (
         day TEXT NOT NULL,
@@ -46,135 +41,135 @@ def init_db():
 
 init_db()
 
-# --- YETKİ KONTROLÜ ---
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
 
-# --- TELEGRAM BOT UYGULAMASI ---
-app = ApplicationBuilder().token(TOKEN).build()
+# --- TELEGRAM BOT APPLICATION ---
+telegram_app = None
 
-def get_admin_keyboard():
-    keyboard = [
-        [
-            InlineKeyboardButton("📊 Genel İstatistikler", callback_data="admin_stats"),
-            InlineKeyboardButton("💰 Bakiye / Coin Ekle", callback_data="admin_add_coin"),
-        ],
-        [
-            InlineKeyboardButton("🎁 Sandık Açılışları", callback_data="admin_sandik"),
-            InlineKeyboardButton("⚙️ Sistem Durumu", callback_data="admin_status"),
-        ],
-        [
-            InlineKeyboardButton("❌ Paneli Kapat", callback_data="admin_close")
-        ]
-    ]
-    return InlineKeyboardMarkup(keyboard)
+def get_telegram_app():
+    global telegram_app
+    if telegram_app is None:
+        telegram_app = ApplicationBuilder().token(TOKEN).build()
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    
-    if not is_admin(user_id):
-        await update.message.reply_text("⛔ **Erişim Reddedildi!**\nBu bot kişiye özeldir ve sadece yetkili admin çalıştırabilir.")
-        return
+        async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+            user_id = update.effective_user.id
+            if not is_admin(user_id):
+                await update.message.reply_text("⛔ **Erişim Reddedildi!**\nBu bot kişiye özeldir ve sadece yetkili admin çalıştırabilir.")
+                return
 
-    await update.message.reply_text(
-        f"👑 **ADMIN YÖNETİM PANELİ**\n\n"
-        f"Yetkili ID: `{user_id}`\n"
-        f"Sistem Vercel Webhook üzerinde sorunsuz çalışıyor.\n\n"
-        f"Yapmak istediğiniz işlemi seçin:",
-        reply_markup=get_admin_keyboard(),
-        parse_mode="Markdown"
-    )
+            keyboard = [
+                [
+                    InlineKeyboardButton("📊 Genel İstatistikler", callback_data="admin_stats"),
+                    InlineKeyboardButton("💰 Bakiye / Coin Ekle", callback_data="admin_add_coin"),
+                ],
+                [
+                    InlineKeyboardButton("🎁 Sandık Açılışları", callback_data="admin_sandik"),
+                    InlineKeyboardButton("⚙️ Sistem Durumu", callback_data="admin_status"),
+                ],
+                [
+                    InlineKeyboardButton("❌ Paneli Kapat", callback_data="admin_close")
+                ]
+            ]
+            await update.message.reply_text(
+                f"👑 **ADMIN YÖNETİM PANELİ**\n\n"
+                f"Yetkili ID: `{user_id}`\n"
+                f"Sistem Vercel Webhook üzerinde sorunsuz çalışıyor.\n\n"
+                f"Yapmak istediğiniz işlemi seçin:",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    user_id = query.from_user.id
-    if not is_admin(user_id):
-        await query.edit_message_text("⛔ Yetkisiz işlem.")
-        return
+        async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+            query = update.callback_query
+            await query.answer()
+            user_id = query.from_user.id
+            if not is_admin(user_id):
+                await query.edit_message_text("⛔ Yetkisiz işlem.")
+                return
 
-    data = query.data
+            data = query.data
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
 
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+            if data == "admin_stats":
+                cursor.execute("SELECT COUNT(*) FROM users")
+                total_users = cursor.fetchone()[0]
+                cursor.execute("SELECT SUM(coins), SUM(sandik_count) FROM users")
+                stats = cursor.fetchone()
+                total_coins = stats[0] if stats[0] else 0
+                total_sandik = stats[1] if stats[1] else 0
 
-    if data == "admin_stats":
-        cursor.execute("SELECT COUNT(*) FROM users")
-        total_users = cursor.fetchone()[0]
+                await query.edit_message_text(
+                    f"📊 **VERİTABANI İSTATİSTİKLERİ**\n\n"
+                    f"• Toplam Kullanıcı: `{total_users}`\n"
+                    f"• Dağıtılan Coin: `{total_coins}`\n"
+                    f"• Açılan Sandık: `{total_sandik}`",
+                    parse_mode="Markdown"
+                )
+            elif data == "admin_status":
+                await query.edit_message_text(
+                    "⚙️ **SİSTEM DURUMU**\n\n"
+                    "• Sunucu: Vercel Serverless\n"
+                    "• Veritabanı: SQLite (Aktif)\n"
+                    "• Mod: Sadece Admin (ID: 8834664265)",
+                    parse_mode="Markdown"
+                )
+            elif data == "admin_add_coin":
+                await query.edit_message_text("💰 **Coin Yükleme:** Admin paneli aktiftir.")
+            elif data == "admin_sandik":
+                await query.edit_message_text("🎁 **Sandık Yönetimi:** Aktif.")
+            elif data == "admin_close":
+                await query.delete_message()
+
+            conn.close()
+
+        telegram_app.add_handler(CommandHandler("start", start))
+        telegram_app.add_handler(CommandHandler("admin", start))
+        telegram_app.add_handler(CallbackQueryHandler(button_handler))
+
+    return telegram_app
+
+# --- VERCEL WSGI ENTRYPOINT ---
+def handler(environ, start_response):
+    try:
+        request_method = environ.get('REQUEST_METHOD', 'GET')
         
-        cursor.execute("SELECT SUM(coins), SUM(sandik_count) FROM users")
-        stats = cursor.fetchone()
-        total_coins = stats[0] if stats[0] else 0
-        total_sandik = stats[1] if stats[1] else 0
+        if request_method == 'POST':
+            try:
+                request_body_size = int(environ.get('CONTENT_LENGTH', 0))
+            except ValueError:
+                request_body_size = 0
+                
+            request_body = environ['wsgi.input'].read(request_body_size)
+            json_data = json.loads(request_body.decode('utf-8'))
 
-        await query.edit_message_text(
-            f"📊 **VERİTABANI İSTATİSTİKLERİ**\n\n"
-            f"• Toplam Kullanıcı: `{total_users}`\n"
-            f"• Dağıtılan Coin: `{total_coins}`\n"
-            f"• Açılan Sandık: `{total_sandik}`",
-            reply_markup=get_admin_keyboard(),
-            parse_mode="Markdown"
-        )
-    elif data == "admin_status":
-        await query.edit_message_text(
-            "⚙️ **SİSTEM DURUMU**\n\n"
-            "• Sunucu: Vercel Serverless\n"
-            "• Veritabanı: SQLite (Aktif)\n"
-            "• Mod: Sadece Admin (ID: 8834664265)",
-            reply_markup=get_admin_keyboard(),
-            parse_mode="Markdown"
-        )
-    elif data == "admin_add_coin":
-        await query.edit_message_text(
-            "💰 **Coin Yükleme:**\nKullanıcı bakiyelerini veritabanından güncellemek için `/addcoin <username> <miktar>` komutunu kullanabilirsiniz.",
-            reply_markup=get_admin_keyboard()
-        )
-    elif data == "admin_sandik":
-        await query.edit_message_text(
-            "🎁 **Sandık Yönetimi:**\nSandık oranları ve günlük sandık verileri aktiftir.",
-            reply_markup=get_admin_keyboard()
-        )
-    elif data == "admin_close":
-        await query.delete_message()
+            bot_app = get_telegram_app()
+            update = Update.de_json(json_data, bot_app.bot)
 
-    conn.close()
-
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("admin", start))
-app.add_handler(CallbackQueryHandler(button_handler))
-
-# --- VERCEL SERVERLESS HANDLER ---
-class handler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        try:
-            content_length = int(self.headers.get('Content-Length', 0))
-            post_data = self.rfile.read(content_length)
-            json_data = json.loads(post_data.decode('utf-8'))
-
-            update = Update.de_json(json_data, app.bot)
-            
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            
-            loop.run_until_complete(app.initialize())
-            loop.run_until_complete(app.process_update(update))
-            loop.run_until_complete(app.shutdown())
+            loop.run_until_complete(bot_app.initialize())
+            loop.run_until_complete(bot_app.process_update(update))
+            loop.run_until_complete(bot_app.shutdown())
             loop.close()
 
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "ok"}).encode('utf-8'))
+            status = '200 OK'
+            response_headers = [('Content-Type', 'application/json')]
+            start_response(status, response_headers)
+            return [json.dumps({"status": "ok"}).encode('utf-8')]
 
-        except Exception as e:
-            self.send_response(500)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+        else:
+            status = '200 OK'
+            response_headers = [('Content-Type', 'text/plain; charset=utf-8')]
+            start_response(status, response_headers)
+            return ["Bot API Aktif (ID: 8834664265 Özel)".encode('utf-8')]
 
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'text/plain; charset=utf-8')
-        self.end_headers()
-        self.wfile.write("Bot Webhook API Aktif (ID: 8834664265 Özel)".encode('utf-8'))
+    except Exception as e:
+        status = '500 Internal Server Error'
+        response_headers = [('Content-Type', 'application/json')]
+        start_response(status, response_headers)
+        return [json.dumps({"error": str(e)}).encode('utf-8')]
+
+# Vercel Serverless Uyumlu
+app = handler
