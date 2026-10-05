@@ -18,8 +18,8 @@ HTML_CONTENT = """<!DOCTYPE html>
             --accent-green: #8cc653;
             --accent-green-hover: #7ab543;
             --accent-red: #e53935;
-            --accent-red-hover: #c62828;
             --accent-blue: #29b6f6;
+            --accent-orange: #ff9800;
             --card-radius: 16px;
             --btn-radius: 10px;
         }
@@ -68,16 +68,22 @@ HTML_CONTENT = """<!DOCTYPE html>
             gap: 8px;
         }
 
-        /* Kullanıcı Profil Kartı */
+        /* Kullanıcı Profil Kartı & Ping Badge */
         .user-profile {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .user-meta {
             display: flex;
             align-items: center;
             gap: 12px;
         }
 
         .avatar {
-            width: 42px;
-            height: 42px;
+            width: 44px;
+            height: 44px;
             border-radius: 50%;
             background: linear-gradient(135deg, var(--accent-green), var(--accent-blue));
             display: flex;
@@ -88,14 +94,34 @@ HTML_CONTENT = """<!DOCTYPE html>
             color: #000;
         }
 
-        .user-info .name {
+        .user-info .name { font-weight: 600; font-size: 1rem; }
+        .user-info .id { color: var(--text-sub); font-size: 0.8rem; }
+
+        .ping-badge {
+            background: rgba(140, 198, 83, 0.15);
+            border: 1px solid var(--accent-green);
+            color: var(--accent-green);
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 0.7rem;
             font-weight: 600;
-            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
 
-        .user-info .id {
-            color: var(--text-sub);
-            font-size: 0.8rem;
+        .pulse-dot {
+            width: 6px;
+            height: 6px;
+            background-color: var(--accent-green);
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.7; }
+            50% { transform: scale(1.3); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.7; }
         }
 
         /* 📊 İstatistik Grid */
@@ -115,16 +141,8 @@ HTML_CONTENT = """<!DOCTYPE html>
             gap: 4px;
         }
 
-        .stat-label {
-            font-size: 0.75rem;
-            color: var(--text-sub);
-        }
-
-        .stat-value {
-            font-size: 1.15rem;
-            font-weight: 700;
-            color: var(--accent-green);
-        }
+        .stat-label { font-size: 0.75rem; color: var(--text-sub); }
+        .stat-value { font-size: 1.15rem; font-weight: 700; color: var(--accent-green); }
 
         /* 🎛 Kontrol & Filtre Alanı */
         .setting-item {
@@ -134,13 +152,10 @@ HTML_CONTENT = """<!DOCTYPE html>
             padding: 6px 0;
         }
 
-        .setting-label {
-            font-size: 0.9rem;
-            color: var(--text-main);
-        }
+        .setting-label { font-size: 0.9rem; color: var(--text-main); }
 
         .input-num {
-            width: 70px;
+            width: 75px;
             background: #222;
             border: 1px solid var(--card-border);
             color: #fff;
@@ -179,34 +194,90 @@ HTML_CONTENT = """<!DOCTYPE html>
         input:checked + .slider { background-color: var(--accent-green); }
         input:checked + .slider:before { transform: translateX(20px); }
 
-        /* 🎁 Sandık Listesi Item */
+        /* 🎁 Canlı Sandık Kartı */
         .box-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--card-border);
+            border-left: 4px solid var(--accent-green);
+            padding: 12px;
+            border-radius: 10px;
+        }
+
+        .box-top {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            background: rgba(255, 255, 255, 0.02);
-            border-left: 3px solid var(--accent-green);
-            padding: 10px;
-            border-radius: 8px;
         }
 
-        .box-info {
+        .box-user { font-weight: 700; font-size: 0.95rem; color: #fff; }
+        .box-coins { color: var(--accent-green); font-weight: 700; font-size: 0.9rem; }
+
+        .box-timer-bar {
+            width: 100%;
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .box-progress {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-green), var(--accent-blue));
+            width: 100%;
+            transition: width 1s linear;
+        }
+
+        .box-bottom {
             display: flex;
-            flex-direction: column;
-            gap: 2px;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.8rem;
         }
 
-        .box-user { font-weight: 600; font-size: 0.9rem; }
-        .box-detail { font-size: 0.75rem; color: var(--text-sub); }
+        .countdown-text {
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: var(--accent-orange);
+            font-weight: bold;
+        }
 
         .btn-link {
             background-color: rgba(41, 182, 246, 0.15);
             color: var(--accent-blue);
-            padding: 6px 12px;
+            padding: 6px 14px;
             border-radius: 6px;
             text-decoration: none;
             font-size: 0.8rem;
             font-weight: 600;
+        }
+
+        /* ➕ Yayıncı Ekleme Alani */
+        .add-user-box {
+            display: flex;
+            gap: 8px;
+        }
+
+        .input-text {
+            flex: 1;
+            background: #222;
+            border: 1px solid var(--card-border);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+
+        .btn-add {
+            background: var(--accent-green);
+            color: #000;
+            border: none;
+            padding: 0 14px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
         }
 
         /* 📋 Log Konsolu */
@@ -217,49 +288,38 @@ HTML_CONTENT = """<!DOCTYPE html>
             font-family: monospace;
             font-size: 0.75rem;
             color: #76ff03;
-            max-height: 100px;
+            max-height: 110px;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
             gap: 4px;
         }
 
-        /* Action Butonları */
-        .btn-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 4px;
-        }
-
+        .btn-group { display: flex; gap: 10px; margin-top: 4px; }
         .btn {
-            flex: 1;
-            padding: 12px;
-            border: none;
-            border-radius: var(--btn-radius);
-            font-size: 0.95rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: opacity 0.2s;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 6px;
+            flex: 1; padding: 12px; border: none; border-radius: var(--btn-radius);
+            font-size: 0.95rem; font-weight: 600; cursor: pointer;
+            display: flex; justify-content: center; align-items: center; gap: 6px;
         }
-
         .btn-green { background-color: var(--accent-green); color: #000; }
         .btn-red { background-color: var(--accent-red); color: #fff; }
-        .btn:active { opacity: 0.8; }
     </style>
 </head>
 <body>
 
-    <!-- 1. Kullanıcı & Profil Bilgisi -->
+    <!-- 1. Kullanıcı & Canlı Ping Durumu -->
     <div class="card">
         <div class="user-profile">
-            <div class="avatar" id="avatar-char">B</div>
-            <div class="user-info">
-                <div class="name" id="user-name">BBRxPhantom</div>
-                <div class="id">ID: <span id="user-id">8834664265</span></div>
+            <div class="user-meta">
+                <div class="avatar" id="avatar-char">B</div>
+                <div class="user-info">
+                    <div class="name" id="user-name">BBRxPhantom</div>
+                    <div class="id">ID: <span id="user-id">8834664265</span></div>
+                </div>
+            </div>
+            <div class="ping-badge">
+                <div class="pulse-dot"></div>
+                <span id="ping-text">14ms</span>
             </div>
         </div>
     </div>
@@ -297,6 +357,13 @@ HTML_CONTENT = """<!DOCTYPE html>
             </label>
         </div>
         <div class="setting-item">
+            <span class="setting-label">Yeni Sandık Bip Sesi (Sesli Uyar)</span>
+            <label class="switch">
+                <input type="checkbox" id="toggle-sound" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
+        <div class="setting-item">
             <span class="setting-label">Min. Coin Limiti</span>
             <input type="number" class="input-num" id="min-coin" value="500" onchange="updateSettings()">
         </div>
@@ -306,24 +373,29 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
     </div>
 
-    <!-- 4. Aktif Sandık Akışı -->
+    <!-- 4. ➕ VIP Yayıncı Ekleme Modülü -->
     <div class="card">
         <div class="card-header">
-            <div class="card-title">🎁 Aktif Sandıklar</div>
-            <span style="font-size: 0.75rem; color: var(--accent-green);">Canlı</span>
+            <div class="card-title">🎯 VIP Yayıncı Ekle</div>
         </div>
-        <div style="display: flex; flex-direction: column; gap: 8px;" id="box-list">
-            <div class="box-item">
-                <div class="box-info">
-                    <div class="box-user">@yayinici_ahmet</div>
-                    <div class="box-detail">1,000 Coin | Kalan: 02:15</div>
-                </div>
-                <a href="https://www.tiktok.com" target="_blank" class="btn-link">Yayına Git</a>
-            </div>
+        <div class="add-user-box">
+            <input type="text" id="target-username" class="input-text" placeholder="@kullanici_adi">
+            <button class="btn-add" onclick="addTargetUser()">+ Ekle</button>
         </div>
     </div>
 
-    <!-- 5. Canlı Konsol Logu -->
+    <!-- 5. ⏱️ CANLI GERİ SAYIMLI SANDIK LİSTESİ -->
+    <div class="card">
+        <div class="card-header">
+            <div class="card-title">🎁 Aktif Sandıklar</div>
+            <span style="font-size: 0.75rem; color: var(--accent-green);" id="live-count">1 Canlı Sandık</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px;" id="box-container">
+            <!-- Örnek Canlı Sandık Kartı -->
+        </div>
+    </div>
+
+    <!-- 6. Canlı Konsol Logu -->
     <div class="card">
         <div class="card-header">
             <div class="card-title">📜 Sistem Logları</div>
@@ -334,7 +406,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
     </div>
 
-    <!-- 6. Ana Aksiyon Butonları -->
+    <!-- 7. Aksiyon Butonları -->
     <div class="btn-group">
         <button class="btn btn-green" onclick="refreshStats()">🔄 Yenile</button>
         <button class="btn btn-red" onclick="closeApp()">❌ Kapat</button>
@@ -344,16 +416,92 @@ HTML_CONTENT = """<!DOCTYPE html>
         const tg = window.Telegram.WebApp;
         tg.expand();
 
-        // Telegram Kullanıcı Verilerini Çekme
+        // 🟢 Örnek Canlı Veri Yapısı (Bot'tan Gelecek Veri)
+        let activeBoxes = [
+            { id: 1, user: "@yayinici_ahmet", coins: 1000, totalTime: 180, remainingTime: 135, url: "https://www.tiktok.com" },
+            { id: 2, user: "@canli_yayin_vip", coins: 2500, totalTime: 300, remainingTime: 45, url: "https://www.tiktok.com" }
+        ];
+
+        // Telegram Kullanıcı Verilerini Alma
         if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
             const user = tg.initDataUnsafe.user;
-            const fullName = user.first_name + (user.last_name ? ' ' + user.last_name : '');
-            document.getElementById('user-name').innerText = fullName;
+            document.getElementById('user-name').innerText = user.first_name + (user.last_name ? ' ' + user.last_name : '');
             document.getElementById('user-id').innerText = user.id;
             document.getElementById('avatar-char').innerText = user.first_name.charAt(0).toUpperCase();
         }
 
-        // Ayarlar Değiştiğinde Çalışacak Fonksiyon
+        // ⏱️ CANLI GERİ SAYIM MOTORU (Saniye Saniye)
+        setInterval(() => {
+            const container = document.getElementById('box-container');
+            container.innerHTML = "";
+
+            if (activeBoxes.length === 0) {
+                container.innerHTML = `<div style="text-align:center; color:#666; padding:10px; font-size:0.85rem;">Aktif sandık bulunamadı...</div>`;
+                document.getElementById('live-count').innerText = "0 Canlı Sandık";
+                return;
+            }
+
+            document.getElementById('live-count').innerText = `${activeBoxes.length} Canlı Sandık`;
+
+            activeBoxes.forEach((box, index) => {
+                if (box.remainingTime > 0) {
+                    box.remainingTime--;
+                } else {
+                    activeBoxes.splice(index, 1);
+                    addLog(`[SÜRE DOLDU] ${box.user} sandığı bitti.`);
+                    return;
+                }
+
+                const minutes = Math.floor(box.remainingTime / 60).toString().padStart(2, '0');
+                const seconds = (box.remainingTime % 60).toString().padStart(2, '0');
+                const progressPercent = (box.remainingTime / box.totalTime) * 100;
+
+                const boxHtml = `
+                    <div class="box-item">
+                        <div class="box-top">
+                            <span class="box-user">${box.user}</span>
+                            <span class="box-coins">🪙 ${box.coins.toLocaleString()} Coin</span>
+                        </div>
+                        <div class="box-timer-bar">
+                            <div class="box-progress" style="width: ${progressPercent}%;"></div>
+                        </div>
+                        <div class="box-bottom">
+                            <span class="countdown-text">⏱️ Kalan: ${minutes}:${seconds}</span>
+                            <a href="${box.url}" target="_blank" class="btn-link">Yayına Git</a>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += boxHtml;
+            });
+        }, 1000);
+
+        // 🔊 Dahili Bip Sesli Uyarısı (Web Audio API)
+        function playBeep() {
+            if (!document.getElementById('toggle-sound').checked) return;
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                osc.type = "sine";
+                osc.frequency.value = 880;
+                osc.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.15);
+            } catch (e) {}
+        }
+
+        // 🎯 Yayıncı Ekleme Fonksiyonu
+        function addTargetUser() {
+            const input = document.getElementById('target-username');
+            const username = input.value.trim();
+            if (!username) return;
+
+            if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+            
+            tg.sendData(JSON.stringify({ action: "add_target", username: username }));
+            addLog(`[VIP EKLE] ${username} listeye eklendi.`);
+            input.value = "";
+        }
+
         function updateSettings() {
             const autoClaim = document.getElementById('toggle-autoclaim').checked;
             const minCoin = document.getElementById('min-coin').value;
@@ -361,26 +509,24 @@ HTML_CONTENT = """<!DOCTYPE html>
 
             if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
 
-            // Telegram Botuna Yapılandırmayı Gönder
             tg.sendData(JSON.stringify({
                 action: "update_settings",
                 auto_claim: autoClaim,
                 min_coin: parseInt(minCoin),
                 min_ratio: parseFloat(minRatio)
             }));
-            
             addLog(`Ayarlar güncellendi: Min ${minCoin} Coin`);
         }
 
         function refreshStats() {
             if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
             addLog("İstatistikler yenilendi.");
+            // Örnek Test için Yeni Sandık Düşürme Sesi Çal
+            playBeep();
             tg.sendData(JSON.stringify({ action: "refresh_stats" }));
         }
 
-        function closeApp() {
-            tg.close();
-        }
+        function closeApp() { tg.close(); }
 
         function addLog(message) {
             const consoleEl = document.getElementById('log-console');
@@ -388,6 +534,12 @@ HTML_CONTENT = """<!DOCTYPE html>
             consoleEl.innerHTML += `<div>[${time}] ${message}</div>`;
             consoleEl.scrollTop = consoleEl.scrollHeight;
         }
+
+        // Ping Güncelleme Simülasyonu
+        setInterval(() => {
+            const randomPing = Math.floor(Math.random() * 10) + 12;
+            document.getElementById('ping-text').innerText = `${randomPing}ms`;
+        }, 4000);
     </script>
 </body>
 </html>"""
