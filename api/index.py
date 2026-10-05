@@ -1,16 +1,16 @@
 from http.server import BaseHTTPRequestHandler
 import json
 
-# Botunuzdan gelecek canlı veriyi tutacak yapı (Botunuz burayı güncelleyecek)
-LIVE_DATA = {
+# Botun dışarıdan güncelleyebileceği veya varsayılan veri deposu
+APP_STATE = {
     "stats": {
         "coins": 0,
         "boxes": 0,
         "channels": 0,
         "status": "Aktif ⚡"
     },
-    "boxes": [], # Bot sandık buldukça buraya dict formatında ekleyecek
-    "logs": ["[SİSTEM] WebApp canlı veri modunda başlatıldı."]
+    "boxes": [],
+    "logs": ["[SİSTEM] Arayüz hazır, veri bekleniyor..."]
 }
 
 HTML_CONTENT = """<!DOCTYPE html>
@@ -216,13 +216,6 @@ HTML_CONTENT = """<!DOCTYPE html>
             font-weight: 600;
         }
 
-        .add-user-box { display: flex; gap: 8px; }
-        .input-text {
-            flex: 1; background: #222; border: 1px solid var(--card-border);
-            color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 0.85rem;
-        }
-        .btn-add { background: var(--accent-green); color: #000; border: none; padding: 0 14px; border-radius: 8px; font-weight: bold; cursor: pointer; }
-
         .log-console {
             background: #000; border-radius: 8px; padding: 10px;
             font-family: monospace; font-size: 0.75rem; color: #76ff03;
@@ -244,15 +237,15 @@ HTML_CONTENT = """<!DOCTYPE html>
     <div class="card">
         <div class="user-profile">
             <div class="user-meta">
-                <div class="avatar" id="avatar-char">?</div>
+                <div class="avatar" id="avatar-char">B</div>
                 <div class="user-info">
-                    <div class="name" id="user-name">Yükleniyor...</div>
+                    <div class="name" id="user-name">Kullanıcı</div>
                     <div class="id">ID: <span id="user-id">-</span></div>
                 </div>
             </div>
             <div class="ping-badge">
                 <div class="pulse-dot"></div>
-                <span id="ping-text">--ms</span>
+                <span id="ping-text">Canlı</span>
             </div>
         </div>
     </div>
@@ -272,7 +265,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
         <div class="stat-box">
             <span class="stat-label">Bot Durumu</span>
-            <span class="stat-value" id="stat-status">Bağlanıyor...</span>
+            <span class="stat-value" id="stat-status">Aktif ⚡</span>
         </div>
     </div>
 
@@ -306,21 +299,11 @@ HTML_CONTENT = """<!DOCTYPE html>
 
     <div class="card">
         <div class="card-header">
-            <div class="card-title">🎯 VIP Yayıncı Ekle</div>
-        </div>
-        <div class="add-user-box">
-            <input type="text" id="target-username" class="input-text" placeholder="@kullanici_adi">
-            <button class="btn-add" onclick="addTargetUser()">+ Ekle</button>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-header">
             <div class="card-title">🎁 Aktif Sandıklar</div>
             <span style="font-size: 0.75rem; color: var(--accent-green);" id="live-count">0 Sandık</span>
         </div>
         <div style="display: flex; flex-direction: column; gap: 10px;" id="box-container">
-            <div style="text-align:center; color:#666; padding:10px; font-size:0.85rem;">Veriler bot üzerinden bekleniyor...</div>
+            <div style="text-align:center; color:#666; padding:10px; font-size:0.85rem;">Aktif taranan sandık yok.</div>
         </div>
     </div>
 
@@ -349,7 +332,6 @@ HTML_CONTENT = """<!DOCTYPE html>
             document.getElementById('avatar-char').innerText = user.first_name.charAt(0).toUpperCase();
         }
 
-        // 🔄 BOT API'SİNDEN CANLI VERİ ÇEKME (POLLING)
         async function fetchLiveData() {
             try {
                 const startTime = Date.now();
@@ -360,19 +342,23 @@ HTML_CONTENT = """<!DOCTYPE html>
                 if (res.ok) {
                     const data = await res.json();
                     
-                    // İstatistikleri Güncelle
                     document.getElementById('stat-coins').innerText = `${data.stats.coins.toLocaleString()} 🪙`;
                     document.getElementById('stat-boxes').innerText = `${data.stats.boxes} Adet`;
                     document.getElementById('stat-channels').innerText = `${data.stats.channels} Yayıncı`;
                     document.getElementById('stat-status').innerText = data.stats.status;
 
-                    // Eğer yeni sandık gelmişse bip çal
-                    if (data.boxes.length > activeBoxes.length) {
+                    if (data.boxes && data.boxes.length > activeBoxes.length) {
                         playBeep();
                     }
 
-                    activeBoxes = data.boxes;
+                    activeBoxes = data.boxes || [];
                     renderBoxes();
+
+                    if (data.logs) {
+                        const consoleEl = document.getElementById('log-console');
+                        consoleEl.innerHTML = data.logs.map(l => `<div>${l}</div>`).join('');
+                        consoleEl.scrollTop = consoleEl.scrollHeight;
+                    }
                 }
             } catch (err) {
                 document.getElementById('ping-text').innerText = 'Çevrimdışı';
@@ -394,7 +380,7 @@ HTML_CONTENT = """<!DOCTYPE html>
             activeBoxes.forEach((box) => {
                 const minutes = Math.floor(box.remainingTime / 60).toString().padStart(2, '0');
                 const seconds = (box.remainingTime % 60).toString().padStart(2, '0');
-                const progressPercent = (box.remainingTime / box.totalTime) * 100;
+                const progressPercent = (box.remainingTime / (box.totalTime || 180)) * 100;
 
                 container.innerHTML += `
                     <div class="box-item">
@@ -414,7 +400,6 @@ HTML_CONTENT = """<!DOCTYPE html>
             });
         }
 
-        // Yerel Saniye Sayacı
         setInterval(() => {
             activeBoxes.forEach((box, i) => {
                 if (box.remainingTime > 0) box.remainingTime--;
@@ -423,8 +408,7 @@ HTML_CONTENT = """<!DOCTYPE html>
             renderBoxes();
         }, 1000);
 
-        // Her 3 saniyede bir Bot Sunucusundan Taze Veri İste
-        setInterval(fetchLiveData, 3000);
+        setInterval(fetchLiveData, 2000);
         fetchLiveData();
 
         function playBeep() {
@@ -440,23 +424,13 @@ HTML_CONTENT = """<!DOCTYPE html>
             } catch (e) {}
         }
 
-        function addTargetUser() {
-            const input = document.getElementById('target-username');
-            const username = input.value.trim();
-            if (!username) return;
-
-            if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-            tg.sendData(JSON.stringify({ action: "add_target", username: username }));
-            addLog(`[VIP EKLE] ${username} bot talimatlarına eklendi.`);
-            input.value = "";
-        }
-
         function updateSettings() {
             const autoClaim = document.getElementById('toggle-autoclaim').checked;
             const minCoin = document.getElementById('min-coin').value;
             const minRatio = document.getElementById('min-ratio').value;
 
             if (tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+            
             tg.sendData(JSON.stringify({
                 action: "update_settings",
                 auto_claim: autoClaim,
@@ -489,9 +463,29 @@ class handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-type', 'application/json; charset=utf-8')
             self.end_headers()
-            self.wfile.write(json.dumps(LIVE_DATA).encode('utf-8'))
+            self.wfile.write(json.dumps(APP_STATE).encode('utf-8'))
         else:
             self.send_response(200)
             self.send_header('Content-type', 'text/html; charset=utf-8')
             self.end_headers()
             self.wfile.write(HTML_CONTENT.encode('utf-8'))
+
+    def do_POST(self):
+        if self.path == '/api/update':
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length)
+            try:
+                data = json.loads(body)
+                if "stats" in data: APP_STATE["stats"] = data["stats"]
+                if "boxes" in data: APP_STATE["boxes"] = data["boxes"]
+                if "logs" in data: APP_STATE["logs"] = data["logs"]
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "ok"}).encode('utf-8'))
+            except Exception as e:
+                self.send_response(400)
+                self.end_headers()
+        else:
+            self.send_response(404)
+            self.end_headers()
