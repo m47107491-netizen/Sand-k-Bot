@@ -2,13 +2,39 @@
 
 import { useEffect, useState } from "react";
 
+const DEFAULT_DUR = 120; // süre okunamazsa (sn)
+const MAX_DUR = 900;     // bundan uzun süre saçma sayılır
+const GRACE = 60;        // bittikten sonra kaç sn soluk görünüp kalsın
+
+// time_raw: "01:30 - 18:42:32" -> baştaki "01:30" geri sayım süresi (dk:sn)
+function durOf(b) {
+  const first = String(b.time_raw || "").split("-")[0].trim();
+  const p = first.split(":").map(Number);
+  if (!first || p.some((x) => !Number.isFinite(x))) return DEFAULT_DUR;
+  const d = p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p.length === 2 ? p[0] * 60 + p[1] : 0;
+  return d > 0 && d <= MAX_DUR ? d : DEFAULT_DUR;
+}
+
+function leftOf(b, now) {
+  return (b.ts || 0) + durOf(b) - now; // kalan sn (negatifse bitti)
+}
+
+function fmt(sec) {
+  const s = Math.max(0, Math.ceil(sec));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
 export default function Home() {
   const [tab, setTab] = useState("normal");
   const [normal, setNormal] = useState([]);
   const [mor, setMor] = useState([]);
   const [status, setStatus] = useState("yükleniyor");
+  const [now, setNow] = useState(Date.now() / 1000);
   const isMor = tab === "mor";
-  const boxes = isMor ? mor : normal;
+  const alive = (arr) => arr.filter((b) => leftOf(b, now) > -GRACE);
+  const normalV = alive(normal);
+  const morV = alive(mor);
+  const boxes = isMor ? morV : normalV;
 
   async function load() {
     try {
@@ -29,7 +55,11 @@ export default function Home() {
   useEffect(() => {
     load();
     const t = setInterval(load, 4000);
-    return () => clearInterval(t);
+    const c = setInterval(() => setNow(Date.now() / 1000), 1000);
+    return () => {
+      clearInterval(t);
+      clearInterval(c);
+    };
   }, []);
 
   return (
@@ -49,13 +79,13 @@ export default function Home() {
           onClick={() => setTab("normal")}
           style={{ ...styles.tab, ...(!isMor ? styles.tabOn : {}) }}
         >
-          20/16 ({normal.length})
+          20/16 ({normalV.length})
         </button>
         <button
           onClick={() => setTab("mor")}
           style={{ ...styles.tab, ...(isMor ? styles.tabMor : {}) }}
         >
-          Mor ({mor.length})
+          Mor ({morV.length})
         </button>
       </div>
 
@@ -67,13 +97,24 @@ export default function Home() {
         )}
         {boxes.map((b) => {
           const live = b.live_url || `https://www.tiktok.com/@${b.user}/live`;
+          const left = leftOf(b, now);
+          const ended = left <= 0;
           return (
-            <article key={b.id} style={{ ...styles.card, ...(isMor ? styles.cardMor : {}) }}>
+            <article
+              key={b.id}
+              style={{
+                ...styles.card,
+                ...(isMor ? styles.cardMor : {}),
+                ...(ended ? { opacity: 0.4, filter: "grayscale(0.8)" } : {}),
+              }}
+            >
               <div style={styles.row}>
                 <a href={live} target="_blank" rel="noreferrer" style={styles.user}>
                   {b.flag ? `${b.flag} ` : ""}@{b.user}
                 </a>
-                <span style={styles.meta}>{b.at}</span>
+                <span style={{ ...styles.meta, color: ended ? "#8b9bb0" : "#f5c542", fontWeight: 700 }}>
+                  {ended ? "bitti" : `⏳ ${fmt(left)}`}
+                </span>
               </div>
               <div style={styles.stats}>
                 <div style={styles.stat}>
