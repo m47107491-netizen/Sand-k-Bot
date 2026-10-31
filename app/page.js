@@ -3,14 +3,23 @@
 import { useEffect, useState } from "react";
 
 export default function Home() {
-  const [boxes, setBoxes] = useState([]);
+  const [tab, setTab] = useState("normal");
+  const [normal, setNormal] = useState([]);
+  const [mor, setMor] = useState([]);
   const [status, setStatus] = useState("yükleniyor");
+  const isMor = tab === "mor";
+  const boxes = isMor ? mor : normal;
 
   async function load() {
     try {
-      const r = await fetch("/api/boxes?limit=60", { cache: "no-store" });
-      const j = await r.json();
-      setBoxes(j.boxes || []);
+      const [r1, r2] = await Promise.all([
+        fetch("/api/boxes?limit=60", { cache: "no-store" }),
+        fetch("/api/mor?limit=60", { cache: "no-store" }),
+      ]);
+      const j1 = await r1.json();
+      const j2 = await r2.json();
+      setNormal(j1.boxes || []);
+      setMor(j2.boxes || []);
       setStatus("canlı");
     } catch {
       setStatus("hata");
@@ -27,7 +36,7 @@ export default function Home() {
     <div style={styles.page}>
       <header style={styles.header}>
         <h1 style={styles.h1}>
-          🎁 <span style={{ color: "#f5c542" }}>20/16</span> Sandık Canlı
+          🎁 <span style={{ color: isMor ? "#b66dff" : "#f5c542" }}>{isMor ? "Mor" : "20/16"}</span> Sandık Canlı
         </h1>
         <div style={{ display: "flex", gap: 8 }}>
           <span style={styles.badge}>{status === "canlı" ? "● canlı" : "● " + status}</span>
@@ -35,16 +44,31 @@ export default function Home() {
         </div>
       </header>
 
+      <div style={styles.tabs}>
+        <button
+          onClick={() => setTab("normal")}
+          style={{ ...styles.tab, ...(!isMor ? styles.tabOn : {}) }}
+        >
+          20/16 ({normal.length})
+        </button>
+        <button
+          onClick={() => setTab("mor")}
+          style={{ ...styles.tab, ...(isMor ? styles.tabMor : {}) }}
+        >
+          Mor ({mor.length})
+        </button>
+      </div>
+
       <main style={styles.main}>
         {!boxes.length && (
           <p style={styles.empty}>
-            Henüz 20/16 yok. Bot API&apos;ye yazınca burada görünecek.
+            Henüz {isMor ? "mor sandık" : "20/16"} yok. Bot API&apos;ye yazınca burada görünecek.
           </p>
         )}
         {boxes.map((b) => {
           const live = b.live_url || `https://www.tiktok.com/@${b.user}/live`;
           return (
-            <article key={b.id} style={styles.card}>
+            <article key={b.id} style={{ ...styles.card, ...(isMor ? styles.cardMor : {}) }}>
               <div style={styles.row}>
                 <a href={live} target="_blank" rel="noreferrer" style={styles.user}>
                   @{b.user}
@@ -53,11 +77,11 @@ export default function Home() {
               </div>
               <div style={styles.stats}>
                 <div style={styles.stat}>
-                  <b>{b.coins}</b>
+                  <b>{b.coins ?? "?"}</b>
                   <span>coin</span>
                 </div>
                 <div style={styles.stat}>
-                  <b>{b.people}</b>
+                  <b>{b.people ?? "?"}</b>
                   <span>kişi</span>
                 </div>
                 <div style={styles.stat}>
@@ -65,7 +89,7 @@ export default function Home() {
                   <span>izleyici</span>
                 </div>
               </div>
-              <a href={live} target="_blank" rel="noreferrer" style={styles.btn}>
+              <a href={live} target="_blank" rel="noreferrer" style={{ ...styles.btn, ...(isMor ? styles.btnMor : {}) }}>
                 🔗 Yayına Git
               </a>
             </article>
@@ -74,7 +98,7 @@ export default function Home() {
       </main>
 
       <footer style={styles.footer}>
-        API: <code>/api/boxes</code> · POST <code>/api/box</code>
+        API: <code>/api/boxes</code> · POST <code>/api/box</code> · <code>/api/mor</code> (GET/POST)
       </footer>
     </div>
   );
@@ -139,5 +163,23 @@ const styles = {
     borderRadius: 12,
     padding: 12,
   },
+  tabs: { display: "flex", gap: 8, justifyContent: "center", padding: "14px 16px 0" },
+  tab: {
+    cursor: "pointer",
+    fontSize: ".9rem",
+    fontWeight: 600,
+    padding: "8px 18px",
+    borderRadius: 999,
+    border: "1px solid #243041",
+    background: "transparent",
+    color: "#8b9bb0",
+  },
+  tabOn: { background: "#f5c542", color: "#1a1400", borderColor: "#f5c542" },
+  tabMor: { background: "#b66dff", color: "#14061f", borderColor: "#b66dff" },
+  cardMor: {
+    background: "linear-gradient(180deg, #2a1b3d, #1c1328)",
+    border: "1px solid #4a2f6b",
+  },
+  btnMor: { background: "linear-gradient(90deg, #8f3fe0, #b66dff)", color: "#14061f" },
   footer: { textAlign: "center", color: "#8b9bb0", fontSize: ".75rem", padding: 20 },
 };
