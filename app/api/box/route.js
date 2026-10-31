@@ -13,7 +13,7 @@ export async function POST(req) {
   } catch {
     return Response.json({ error: "JSON gerekli" }, { status: 400 });
   }
-  const result = addBox(body);
+  const result = await addBox(body);
   if (result.error) {
     return Response.json({ error: result.error }, { status: result.status || 400 });
   }
