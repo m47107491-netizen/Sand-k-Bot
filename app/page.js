@@ -71,7 +71,7 @@ export default function Home() {
             <article key={b.id} style={{ ...styles.card, ...(isMor ? styles.cardMor : {}) }}>
               <div style={styles.row}>
                 <a href={live} target="_blank" rel="noreferrer" style={styles.user}>
-                  @{b.user}
+                  {b.flag ? `${b.flag} ` : ""}@{b.user}
                 </a>
                 <span style={styles.meta}>{b.at}</span>
               </div>
