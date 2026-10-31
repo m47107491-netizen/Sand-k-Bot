@@ -89,6 +89,11 @@ export default function Home() {
                   <span>izleyici</span>
                 </div>
               </div>
+              {b.comment ? (
+                <div dir="auto" style={styles.comment}>
+                  💬 {b.comment}
+                </div>
+              ) : null}
               <a href={live} target="_blank" rel="noreferrer" style={{ ...styles.btn, ...(isMor ? styles.btnMor : {}) }}>
                 🔗 Yayına Git
               </a>
@@ -176,6 +181,15 @@ const styles = {
   },
   tabOn: { background: "#f5c542", color: "#1a1400", borderColor: "#f5c542" },
   tabMor: { background: "#b66dff", color: "#14061f", borderColor: "#b66dff" },
+  comment: {
+    marginTop: 12,
+    padding: "8px 12px",
+    borderRadius: 10,
+    background: "rgba(0,0,0,.25)",
+    color: "#cfd8e6",
+    fontSize: ".95rem",
+    wordBreak: "break-word",
+  },
   cardMor: {
     background: "linear-gradient(180deg, #2a1b3d, #1c1328)",
     border: "1px solid #4a2f6b",
