@@ -28,24 +28,30 @@ export default function Home() {
   const [tab, setTab] = useState("normal");
   const [normal, setNormal] = useState([]);
   const [mor, setMor] = useState([]);
+  const [all, setAll] = useState([]);
   const [status, setStatus] = useState("yükleniyor");
   const [now, setNow] = useState(Date.now() / 1000);
   const isMor = tab === "mor";
+  const isAll = tab === "all";
   const alive = (arr) => arr.filter((b) => leftOf(b, now) > -GRACE);
   const normalV = alive(normal);
   const morV = alive(mor);
-  const boxes = isMor ? morV : normalV;
+  const allV = alive(all);
+  const boxes = isMor ? morV : isAll ? allV : normalV;
 
   async function load() {
     try {
-      const [r1, r2] = await Promise.all([
+      const [r1, r2, r3] = await Promise.all([
         fetch("/api/boxes?limit=60", { cache: "no-store" }),
         fetch("/api/mor?limit=60", { cache: "no-store" }),
+        fetch("/api/tumsandiklar?limit=60", { cache: "no-store" }),
       ]);
       const j1 = await r1.json();
       const j2 = await r2.json();
+      const j3 = await r3.json();
       setNormal(j1.boxes || []);
       setMor(j2.boxes || []);
+      setAll(j3.boxes || []);
       setStatus("canlı");
     } catch {
       setStatus("hata");
@@ -66,7 +72,7 @@ export default function Home() {
     <div style={styles.page}>
       <header style={styles.header}>
         <h1 style={styles.h1}>
-          🎁 <span style={{ color: isMor ? "#b66dff" : "#f5c542" }}>{isMor ? "Mor" : "20/16"}</span> Sandık Canlı
+          🎁 <span style={{ color: isMor ? "#b66dff" : isAll ? "#4cc9f0" : "#f5c542" }}>{isMor ? "Mor" : isAll ? "Tümü" : "20/16"}</span> Sandık Canlı
         </h1>
         <div style={{ display: "flex", gap: 8 }}>
           <span style={styles.badge}>{status === "canlı" ? "● canlı" : "● " + status}</span>
@@ -77,7 +83,7 @@ export default function Home() {
       <div style={styles.tabs}>
         <button
           onClick={() => setTab("normal")}
-          style={{ ...styles.tab, ...(!isMor ? styles.tabOn : {}) }}
+          style={{ ...styles.tab, ...(!isMor && !isAll ? styles.tabOn : {}) }}
         >
           20/16 ({normalV.length})
         </button>
@@ -87,12 +93,18 @@ export default function Home() {
         >
           Mor ({morV.length})
         </button>
+        <button
+          onClick={() => setTab("all")}
+          style={{ ...styles.tab, ...(isAll ? styles.tabAll : {}) }}
+        >
+          Tümü ({allV.length})
+        </button>
       </div>
 
       <main style={styles.main}>
         {!boxes.length && (
           <p style={styles.empty}>
-            Henüz {isMor ? "mor sandık" : "20/16"} yok. Bot API&apos;ye yazınca burada görünecek.
+            Henüz {isMor ? "mor sandık" : isAll ? "sandık" : "20/16"} yok. Bot API&apos;ye yazınca burada görünecek.
           </p>
         )}
         {boxes.map((b) => {
@@ -144,7 +156,7 @@ export default function Home() {
       </main>
 
       <footer style={styles.footer}>
-        API: <code>/api/boxes</code> · POST <code>/api/box</code> · <code>/api/mor</code> (GET/POST)
+        API: <code>/api/boxes</code> · POST <code>/api/box</code> · <code>/api/mor</code> (GET/POST) · <code>/api/tümsandiklar</code> (GET/POST)
       </footer>
     </div>
   );
@@ -221,6 +233,7 @@ const styles = {
     color: "#8b9bb0",
   },
   tabOn: { background: "#f5c542", color: "#1a1400", borderColor: "#f5c542" },
+  tabAll: { background: "#4cc9f0", color: "#06202a", borderColor: "#4cc9f0" },
   tabMor: { background: "#b66dff", color: "#14061f", borderColor: "#b66dff" },
   comment: {
     marginTop: 12,
