@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 export default function AdminPage() {
   const [auth, setAuth] = useState("");
@@ -31,7 +31,7 @@ export default function AdminPage() {
     if (!newId) return;
 
     // Süre hesaplama (örn: 1ay, 7g, 12s)
-    let seconds = 30 * 86400; // varsayılan 1 ay
+    let seconds = 30 * 86400;
     const match = newDuration.match(/(\d+)\s*([a-zA-Zğüşıöç]+)/);
     if (match) {
       const val = parseInt(match[1]);
@@ -87,7 +87,6 @@ export default function AdminPage() {
           <button onClick={() => setIsLoggedIn(false)} style={{ ...styles.btn, background: "#ef4444" }}>Çıkış</button>
         </div>
 
-        {/* Yeni Cihaz Ekleme Formu */}
         <form onSubmit={handleAdd} style={styles.addForm}>
           <input type="text" placeholder="device_123456" value={newId} onChange={e => setNewId(e.target.value)} style={styles.input} required />
           <select value={newDuration} onChange={e => setNewDuration(e.target.value)} style={styles.input}>
@@ -100,7 +99,6 @@ export default function AdminPage() {
           <button type="submit" style={{ ...styles.btn, background: "#10b981" }}>➕ Ekle / Güncelle</button>
         </form>
 
-        {/* Cihaz Listesi */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {devices.length === 0 ? <p>Kayıtlı cihaz yok.</p> : null}
           {devices.sort((a,b) => b.expires - a.expires).map(dev => {
