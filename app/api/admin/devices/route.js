@@ -1,7 +1,6 @@
-import { redis } from '@/lib/redis';
+import { redis } from '../../../../lib/redis';
 import { NextResponse } from 'next/server';
 
-// Tüm cihazları listeleme
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   if (searchParams.get('auth') !== process.env.ADMIN_SECRET) {
@@ -24,7 +23,6 @@ export async function GET(req) {
   }
 }
 
-// Yeni cihaz ekleme
 export async function POST(req) {
   try {
     const { auth, device_id, expires } = await req.json();
@@ -37,7 +35,6 @@ export async function POST(req) {
   }
 }
 
-// Cihaz silme
 export async function DELETE(req) {
   try {
     const { searchParams } = new URL(req.url);
