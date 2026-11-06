@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/microfrontends.json",
+  "applications": {
+    "sand-k-bot": {
+      "development": {
+        "fallback": "sand-k-bot.vercel.app"
+      }
+    }
+  }
+}
