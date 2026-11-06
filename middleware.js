@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 export function middleware(request) {
   const { pathname } = request.nextUrl;
   
-  // Sadece admin API'lerini dışarıdan gelen isteklere karşı koruyoruz
   if (pathname.startsWith('/api/admin/')) {
     const origin = request.headers.get('origin');
     const referer = request.headers.get('referer');
@@ -14,7 +13,6 @@ export function middleware(request) {
       (origin && origin.includes(host)) || 
       (referer && referer.includes(host));
 
-    // Python, Postman, cURL gibi dış araçlarla istek atılıyorsa engelle
     if (
       !isSameOrigin || 
       userAgent.includes('python') || 
