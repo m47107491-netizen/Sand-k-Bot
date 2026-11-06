@@ -54,7 +54,6 @@ function Home() {
     }
     setDeviceId(did);
 
-    // Linkten gelen kullanıcı adı (?u=...)
     const u = searchParams.get("u");
     if (u) setTargetUser(u);
 
@@ -63,12 +62,11 @@ function Home() {
       .then((data) => {
         setIsAuthorized(data.ok);
         
-        // OTOMATİK YÖNLENDİRME: Yetkiliyse ve linkten kullanıcı gelmişse direkt TikTok'a at
         if (data.ok && u) {
           setRedirecting(true);
           setTimeout(() => {
             window.location.href = `https://www.tiktok.com/@${u}/live`;
-          }, 1500); // 1.5 saniye sonra yönlendirir
+          }, 1500);
         }
       })
       .catch(() => setIsAuthorized(false));
