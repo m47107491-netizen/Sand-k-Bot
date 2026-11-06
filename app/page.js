@@ -63,12 +63,12 @@ function Home() {
       .then((data) => {
         setIsAuthorized(data.ok);
         
-        // OTOMATİK YÖNLENDİRME: Eğer yetkiliyse ve linkten kullanıcı gelmişse direkt TikTok'a at
+        // OTOMATİK YÖNLENDİRME: Yetkiliyse ve linkten kullanıcı gelmişse direkt TikTok'a at
         if (data.ok && u) {
           setRedirecting(true);
           setTimeout(() => {
             window.location.href = `https://www.tiktok.com/@${u}/live`;
-          }, 1500); // 1.5 saniye "Yönlendiriliyorsunuz" gösterip atar
+          }, 1500); // 1.5 saniye sonra yönlendirir
         }
       })
       .catch(() => setIsAuthorized(false));
@@ -115,7 +115,6 @@ function Home() {
     };
   }, []);
 
-  // EĞER YÖNLENDİRİLİYORSA BUNU GÖSTER
   if (redirecting) {
     return (
       <div style={{ ...styles.page, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column" }}>
@@ -227,5 +226,5 @@ const styles = {
   tabMor: { background: "#b66dff", color: "#14061f", borderColor: "#b66dff" },
   comment: { marginTop: 12, padding: "8px 12px", borderRadius: 10, background: "rgba(0,0,0,.25)", color: "#cfd8e6", fontSize: ".95rem", wordBreak: "break-word" },
   cardMor: { background: "linear-gradient(180deg, #2a1b3d, #1c1328)", border: "1px solid #4a2f6b" },
-  btnMor: { background: "linear-gradient(90deg, #8f3fe0, #b66dff)", color: "#14061f" },
+  btnMor: { background: "linear-gradient(90deg, #8f3fe0, #b66dff)", color: "#14061f" }
 };
