@@ -33,9 +33,10 @@ function Home() {
   const [status, setStatus] = useState("yükleniyor");
   const [now, setNow] = useState(Date.now() / 1000);
   
-  // Cihaz yetkilendirme state'leri
   const [deviceId, setDeviceId] = useState("");
-  const [isAuthorized, setIsAuthorized] = useState(null); // null: yükleniyor, true/false
+  const [isAuthorized, setIsAuthorized] = useState(null);
+  const [redirecting, setRedirecting] = useState(false);
+  const [targetUser, setTargetUser] = useState("");
 
   const isMor = tab === "mor";
   const isAll = tab === "all";
@@ -45,7 +46,6 @@ function Home() {
   const allV = alive(all);
   const boxes = isMor ? morV : isAll ? allV : normalV;
 
-  // Cihaz kontrolü yap
   useEffect(() => {
     let did = localStorage.getItem("sandik_device_id");
     if (!did) {
@@ -54,18 +54,32 @@ function Home() {
     }
     setDeviceId(did);
 
+    // Linkten gelen kullanıcı adı (?u=...)
+    const u = searchParams.get("u");
+    if (u) setTargetUser(u);
+
     fetch(`/api/check?device=${did}`)
       .then((r) => r.json())
-      .then((data) => setIsAuthorized(data.ok))
+      .then((data) => {
+        setIsAuthorized(data.ok);
+        
+        // OTOMATİK YÖNLENDİRME: Eğer yetkiliyse ve linkten kullanıcı gelmişse direkt TikTok'a at
+        if (data.ok && u) {
+          setRedirecting(true);
+          setTimeout(() => {
+            window.location.href = `https://www.tiktok.com/@${u}/live`;
+          }, 1500); // 1.5 saniye "Yönlendiriliyorsunuz" gösterip atar
+        }
+      })
       .catch(() => setIsAuthorized(false));
-  }, []);
+  }, [searchParams]);
 
   const copyId = () => {
     navigator.clipboard.writeText(deviceId);
     alert("Cihaz ID kopyalandı: " + deviceId + "\nAdmine göndererek yetki alabilirsiniz.");
   };
 
-  const handleLiveClick = (e) => {
+  const handleLiveClick = (e, user) => {
     if (!isAuthorized) {
       e.preventDefault();
       alert(`⚠️ Yayına gitmek için admine ödeme yapın.\n\nCihaz ID'niz: ${deviceId}\n\nBu ID'yi admine DM'den gönderin.`);
@@ -101,15 +115,32 @@ function Home() {
     };
   }, []);
 
+  // EĞER YÖNLENDİRİLİYORSA BUNU GÖSTER
+  if (redirecting) {
+    return (
+      <div style={{ ...styles.page, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column" }}>
+        <div style={{ fontSize: "4rem", marginBottom: "20px" }}>🚀</div>
+        <h2 style={{ color: "#4ade80", marginBottom: "10px" }}>Cihaz Onaylı!</h2>
+        <p style={{ color: "#8b9bb0" }}>@{targetUser} yayınına yönlendiriliyorsunuz...</p>
+      </div>
+    );
+  }
+
   return (
     <div style={styles.page}>
-      {/* YETKİSİZ KULLANICI UYARISI */}
       {isAuthorized === false && (
-        <div style={{ background: "#e63946", color: "white", padding: "16px", textAlign: "center", position: "sticky", top: 0, zIndex: 50, boxShadow: "0 4px 12px rgba(0,0,0,0.5)" }}>
-          <h2 style={{ margin: "0 0 8px", fontSize: "1.1rem" }}>⚠️ Erişim Engellendi</h2>
-          <p style={{ margin: "0 0 12px", fontSize: "0.9rem", fontWeight: "bold" }}>Yayına gitmek için admine ödeme yapın.</p>
-          <button onClick={copyId} style={{ background: "#fff", color: "#e63946", border: "none", padding: "10px 16px", borderRadius: "8px", fontWeight: "bold", cursor: "pointer", fontSize: "0.9rem" }}>
-            📋 Cihaz ID Kopyala: {deviceId}
+        <div style={styles.alertBox}>
+          <div style={{ fontSize: "1.2rem", fontWeight: "bold", color: "#f87171", marginBottom: 8 }}>
+            ⚠️ Cihaz Doğrulanamadı
+          </div>
+          <div style={{ fontSize: "0.95rem", marginBottom: 16, color: "#fca5a5" }}>
+            Cihaz kimliği sistemde eşleşmedi. Yayına gitmek için admine ödeme yapın.
+          </div>
+          <div style={{ background: "rgba(0,0,0,0.3)", padding: "12px", borderRadius: "8px", marginBottom: 16, fontFamily: "monospace", fontSize: "1.1rem", color: "#fff", letterSpacing: "1px" }}>
+            {deviceId}
+          </div>
+          <button onClick={copyId} style={styles.copyBtn}>
+            📋 Cihaz ID Kopyala
           </button>
         </div>
       )}
@@ -141,7 +172,7 @@ function Home() {
           return (
             <article key={b.id} style={{ ...styles.card, ...(isMor ? styles.cardMor : {}), ...(ended ? { opacity: 0.4, filter: "grayscale(0.8)" } : {}) }}>
               <div style={styles.row}>
-                <a href={live} target="_blank" rel="noreferrer" style={styles.user} onClick={handleLiveClick}>
+                <a href={live} target="_blank" rel="noreferrer" style={styles.user} onClick={(e) => handleLiveClick(e, b.user)}>
                   {b.flag ? `${b.flag} ` : ""}@{b.user}
                 </a>
                 <span style={{ ...styles.meta, color: ended ? "#8b9bb0" : "#f5c542", fontWeight: 700 }}>
@@ -154,17 +185,13 @@ function Home() {
                 <div style={styles.stat}><b>{b.viewers ?? "?"}</b><span>izleyici</span></div>
               </div>
               {b.comment ? <div dir="auto" style={styles.comment}>💬 {b.comment}</div> : null}
-              <a href={live} target="_blank" rel="noreferrer" onClick={handleLiveClick} style={{ ...styles.btn, ...(isMor ? styles.btnMor : {}) }}>
+              <a href={live} target="_blank" rel="noreferrer" onClick={(e) => handleLiveClick(e, b.user)} style={{ ...styles.btn, ...(isMor ? styles.btnMor : {}) }}>
                 🔗 Yayına Git
               </a>
             </article>
           );
         })}
       </main>
-
-      <footer style={styles.footer}>
-        API: <code>/api/boxes</code> · POST <code>/api/box</code> · <code>/api/mor</code> (GET/POST) · <code>/api/tümsandiklar</code> (GET/POST)
-      </footer>
     </div>
   );
 }
@@ -179,6 +206,8 @@ export default function Page() {
 
 const styles = {
   page: { minHeight: "100vh", margin: 0, fontFamily: 'system-ui, "Segoe UI", sans-serif', background: "radial-gradient(1200px 600px at 10% -10%, #1a2740 0%, #0b0f14 55%)", color: "#e8eef6" },
+  alertBox: { background: "#2a1520", borderBottom: "2px solid #ef4444", padding: "20px", textAlign: "center", position: "sticky", top: 0, zIndex: 50 },
+  copyBtn: { background: "#fff", color: "#e63946", border: "none", padding: "10px 20px", borderRadius: "8px", fontWeight: "bold", cursor: "pointer", fontSize: "0.9rem", width: "100%", maxWidth: "300px" },
   header: { position: "sticky", top: 0, zIndex: 10, display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: "rgba(11,15,20,.9)", borderBottom: "1px solid #243041" },
   h1: { margin: 0, fontSize: "1.15rem" },
   badge: { fontSize: ".75rem", padding: "4px 10px", borderRadius: 999, border: "1px solid #243041", color: "#8b9bb0" },
@@ -199,5 +228,4 @@ const styles = {
   comment: { marginTop: 12, padding: "8px 12px", borderRadius: 10, background: "rgba(0,0,0,.25)", color: "#cfd8e6", fontSize: ".95rem", wordBreak: "break-word" },
   cardMor: { background: "linear-gradient(180deg, #2a1b3d, #1c1328)", border: "1px solid #4a2f6b" },
   btnMor: { background: "linear-gradient(90deg, #8f3fe0, #b66dff)", color: "#14061f" },
-  footer: { textAlign: "center", color: "#8b9bb0", fontSize: ".75rem", padding: 20 }
 };
