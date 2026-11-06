@@ -6,7 +6,6 @@ export default function AdminPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [devices, setDevices] = useState([]);
   
-  // Yeni cihaz state
   const [newId, setNewId] = useState("");
   const [newDuration, setNewDuration] = useState("1ay");
 
@@ -30,7 +29,6 @@ export default function AdminPage() {
     e.preventDefault();
     if (!newId) return;
 
-    // Süre hesaplama (örn: 1ay, 7g, 12s)
     let seconds = 30 * 86400;
     const match = newDuration.match(/(\d+)\s*([a-zA-Zğüşıöç]+)/);
     if (match) {
