@@ -18,7 +18,7 @@ export default function AdminPage() {
       if (data.ok) {
         setDevices(data.devices);
         setIsLoggedIn(true);
-      } else if (res.status === 503) {
+      } else if (res.status === 503 || res.status === 429) {
         alert(data.error || "Sunucuda ADMIN_SECRET ayarlı değil!");
       } else {
         alert("Şifre yanlış!");
