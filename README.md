@@ -32,7 +32,7 @@ vercel --prod
 ## Test
 ```bash
 curl -X POST https://SENIN-PROJE.vercel.app/api/box \
-  -H "Authorization: Bearer sandik20-16-secret" \
+  -H "Authorization: Bearer $SANDIK_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"user":"test_user","coins":20,"people":16,"viewers":100}'
 ```
