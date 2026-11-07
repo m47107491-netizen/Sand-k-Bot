@@ -24,6 +24,17 @@ function fmt(sec) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
+function safeLive(b) {
+  const fallback = `https://www.tiktok.com/@${encodeURIComponent(String(b.user || ""))}/live`;
+  try {
+    const u = new URL(String(b.live_url || ""));
+    const h = u.hostname.toLowerCase();
+    const okProto = u.protocol === "https:" || u.protocol === "http:";
+    if (okProto && (h === "tiktok.com" || h.endsWith(".tiktok.com"))) return u.toString();
+  } catch {}
+  return fallback;
+}
+
 function Home() {
   const searchParams = useSearchParams();
   const [tab, setTab] = useState("normal");
@@ -65,7 +76,7 @@ function Home() {
         if (data.ok && u) {
           setRedirecting(true);
           setTimeout(() => {
-            window.location.href = `https://www.tiktok.com/@${u}/live`;
+            window.location.href = `https://www.tiktok.com/@${encodeURIComponent(u)}/live`;
           }, 1500);
         }
       })
@@ -172,7 +183,7 @@ function Home() {
           <p style={styles.empty}>Henüz {isMor ? "mor sandık" : isAll ? "sandık" : "20/16"} yok. Bot API&apos;ye yazınca burada görünecek.</p>
         )}
         {boxes.map((b) => {
-          const live = b.live_url || `https://www.tiktok.com/@${b.user}/live`;
+          const live = safeLive(b);
           const left = leftOf(b, now);
           const ended = left <= 0;
           return (
