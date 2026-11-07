@@ -10,7 +10,7 @@ function deny(a) {
 }
 
 export async function GET(req) {
-  const a = checkAdmin(req);
+  const a = await checkAdmin(req);
   if (!a.ok) return deny(a);
 
   try {
@@ -28,7 +28,7 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
-  const a = checkAdmin(req);
+  const a = await checkAdmin(req);
   if (!a.ok) return deny(a);
 
   try {
@@ -45,7 +45,7 @@ export async function POST(req) {
 }
 
 export async function DELETE(req) {
-  const a = checkAdmin(req);
+  const a = await checkAdmin(req);
   if (!a.ok) return deny(a);
 
   try {
