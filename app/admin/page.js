@@ -9,14 +9,22 @@ export default function AdminPage() {
   const [newId, setNewId] = useState("");
   const [newDuration, setNewDuration] = useState("1ay");
 
+  const headers = (pass) => ({ "Content-Type": "application/json", "x-admin-key": pass });
+
   const fetchDevices = async (pass) => {
-    const res = await fetch(`/api/admin/devices?auth=${pass}`);
-    const data = await res.json();
-    if (data.ok) {
-      setDevices(data.devices);
-      setIsLoggedIn(true);
-    } else {
-      alert("Şifre yanlış!");
+    try {
+      const res = await fetch("/api/admin/devices", { headers: headers(pass), cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (data.ok) {
+        setDevices(data.devices);
+        setIsLoggedIn(true);
+      } else if (res.status === 503) {
+        alert(data.error || "Sunucuda ADMIN_SECRET ayarlı değil!");
+      } else {
+        alert("Şifre yanlış!");
+      }
+    } catch (e) {
+      alert("Sunucuya ulaşılamadı");
     }
   };
 
@@ -45,8 +53,8 @@ export default function AdminPage() {
 
     const res = await fetch("/api/admin/devices", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ auth, device_id: did, expires }),
+      headers: headers(auth),
+      body: JSON.stringify({ device_id: did, expires }),
     });
 
     if (res.ok) {
@@ -59,7 +67,7 @@ export default function AdminPage() {
 
   const handleDelete = async (id) => {
     if (!confirm(`${id} silinsin mi?`)) return;
-    await fetch(`/api/admin/devices?auth=${auth}&device_id=${id}`, { method: "DELETE" });
+    await fetch(`/api/admin/devices?device_id=${encodeURIComponent(id)}`, { method: "DELETE", headers: headers(auth) });
     fetchDevices(auth);
   };
 
@@ -82,7 +90,7 @@ export default function AdminPage() {
       <div style={styles.container}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <h2 style={{ margin: 0 }}>⚙️ Cihaz Yönetimi</h2>
-          <button onClick={() => setIsLoggedIn(false)} style={{ ...styles.btn, background: "#ef4444" }}>Çıkış</button>
+          <button onClick={() => { setIsLoggedIn(false); setAuth(""); setDevices([]); }} style={{ ...styles.btn, background: "#ef4444" }}>Çıkış</button>
         </div>
 
         <form onSubmit={handleAdd} style={styles.addForm}>
@@ -99,7 +107,7 @@ export default function AdminPage() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {devices.length === 0 ? <p>Kayıtlı cihaz yok.</p> : null}
-          {devices.sort((a,b) => b.expires - a.expires).map(dev => {
+          {[...devices].sort((a,b) => b.expires - a.expires).map(dev => {
             const isActive = dev.expires > Date.now() / 1000;
             return (
               <div key={dev.id} style={{ ...styles.deviceCard, opacity: isActive ? 1 : 0.5 }}>
