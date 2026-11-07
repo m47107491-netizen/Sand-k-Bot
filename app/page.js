@@ -104,6 +104,7 @@ function Home() {
   }
 
   useEffect(() => {
+    if (isAuthorized !== true) return;
     load();
     const t = setInterval(load, 4000);
     const c = setInterval(() => setNow(Date.now() / 1000), 1000);
@@ -111,7 +112,7 @@ function Home() {
       clearInterval(t);
       clearInterval(c);
     };
-  }, []);
+  }, [isAuthorized]);
 
   if (redirecting) {
     return (
@@ -123,25 +124,33 @@ function Home() {
     );
   }
 
-  return (
-    <div style={styles.page}>
-      {isAuthorized === false && (
-        <div style={styles.alertBox}>
-          <div style={{ fontSize: "1.2rem", fontWeight: "bold", color: "#f87171", marginBottom: 8 }}>
+  if (isAuthorized === null) {
+    return <div style={{ ...styles.page, ...styles.center }} />;
+  }
+
+  if (isAuthorized === false) {
+    return (
+      <div style={{ ...styles.page, ...styles.center }}>
+        <div style={styles.lockBox}>
+          <div style={{ fontSize: "1.4rem", fontWeight: "bold", color: "#f87171", marginBottom: 10 }}>
             ⚠️ Cihaz Doğrulanamadı
           </div>
-          <div style={{ fontSize: "0.95rem", marginBottom: 16, color: "#fca5a5" }}>
+          <div style={{ fontSize: "1rem", marginBottom: 20, color: "#fca5a5" }}>
             Cihaz kimliği sistemde eşleşmedi. Yayına gitmek için admine ödeme yapın.
           </div>
-          <div style={{ background: "rgba(0,0,0,0.3)", padding: "12px", borderRadius: "8px", marginBottom: 16, fontFamily: "monospace", fontSize: "1.1rem", color: "#fff", letterSpacing: "1px" }}>
+          <div style={{ background: "rgba(0,0,0,0.3)", padding: "14px", borderRadius: "8px", marginBottom: 20, fontFamily: "monospace", fontSize: "1.2rem", color: "#fff", letterSpacing: "1px" }}>
             {deviceId}
           </div>
           <button onClick={copyId} style={styles.copyBtn}>
             📋 Cihaz ID Kopyala
           </button>
         </div>
-      )}
+      </div>
+    );
+  }
 
+  return (
+    <div style={styles.page}>
       <header style={styles.header}>
         <h1 style={styles.h1}>
           🎁 <span style={{ color: isMor ? "#b66dff" : isAll ? "#4cc9f0" : "#f5c542" }}>{isMor ? "Mor" : isAll ? "Tümü" : "20/16"}</span> Sandık Canlı
@@ -203,6 +212,8 @@ export default function Page() {
 
 const styles = {
   page: { minHeight: "100vh", margin: 0, fontFamily: 'system-ui, "Segoe UI", sans-serif', background: "radial-gradient(1200px 600px at 10% -10%, #1a2740 0%, #0b0f14 55%)", color: "#e8eef6" },
+  center: { minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, boxSizing: "border-box" },
+  lockBox: { width: "100%", maxWidth: 420, background: "#2a1520", border: "2px solid #ef4444", borderRadius: 16, padding: 24, textAlign: "center" },
   alertBox: { background: "#2a1520", borderBottom: "2px solid #ef4444", padding: "20px", textAlign: "center", position: "sticky", top: 0, zIndex: 50 },
   copyBtn: { background: "#fff", color: "#e63946", border: "none", padding: "10px 20px", borderRadius: "8px", fontWeight: "bold", cursor: "pointer", fontSize: "0.9rem", width: "100%", maxWidth: "300px" },
   header: { position: "sticky", top: 0, zIndex: 10, display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: "rgba(11,15,20,.9)", borderBottom: "1px solid #243041" },
