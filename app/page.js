@@ -19,6 +19,38 @@ function leftOf(b, now) {
   return (b.ts || 0) + durOf(b) - now;
 }
 
+const RING_R = 27;
+const RING_C = 2 * Math.PI * RING_R;
+
+// Erişim süresi: 1 günden fazlaysa "12g 4s 10dk", altındaysa saniye saniye "04:12:09"
+function fmtAccess(sec) {
+  const s = Math.max(0, Math.floor(sec));
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (d > 0) return `${d}g ${h}s ${m}dk`;
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(h)}:${p(m)}:${p(s % 60)}`;
+}
+
+function accessTone(sec) {
+  return sec < 3600 ? "crit" : sec < 86400 ? "warn" : "ok";
+}
+
+function Ring({ left, total, ended }) {
+  const p = ended ? 0 : Math.min(1, Math.max(0, left / total));
+  const urgent = !ended && left <= 20;
+  return (
+    <svg className="ring" viewBox="0 0 64 64" role="img" aria-label={ended ? "Sandık bitti" : `${fmt(left)} kaldı`}>
+      <circle className="track" cx="32" cy="32" r={RING_R} />
+      <circle className={`arc${urgent ? " urgent" : ""}`} cx="32" cy="32" r={RING_R} transform="rotate(-90 32 32)" strokeDasharray={RING_C} strokeDashoffset={RING_C * (1 - p)} />
+      <text className={urgent ? "urgent" : ""} x="32" y={ended ? 36 : 37} style={ended ? { fontSize: 12 } : undefined}>
+        {ended ? "bitti" : fmt(left)}
+      </text>
+    </svg>
+  );
+}
+
 function fmt(sec) {
   const s = Math.max(0, Math.ceil(sec));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -43,9 +75,12 @@ function Home() {
   const [all, setAll] = useState([]);
   const [status, setStatus] = useState("yükleniyor");
   const [now, setNow] = useState(Date.now() / 1000);
-  
+
   const [deviceId, setDeviceId] = useState("");
   const [isAuthorized, setIsAuthorized] = useState(null);
+  const [expires, setExpires] = useState(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const [targetUser, setTargetUser] = useState("");
 
@@ -68,11 +103,12 @@ function Home() {
     const u = searchParams.get("u");
     if (u) setTargetUser(u);
 
-    fetch(`/api/check?device=${did}`)
+    fetch(`/api/check?device=${did}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         setIsAuthorized(data.ok);
-        
+        if (data.ok && data.expires) setExpires(Number(data.expires));
+
         if (data.ok && u) {
           setRedirecting(true);
           setTimeout(() => {
@@ -83,16 +119,21 @@ function Home() {
       .catch(() => setIsAuthorized(false));
   }, [searchParams]);
 
-  const copyId = () => {
-    navigator.clipboard.writeText(deviceId);
-    alert("Cihaz ID kopyalandı: " + deviceId + "\nAdmine göndererek yetki alabilirsiniz.");
+  // Erişim süresi bitince kilit ekranına dön
+  useEffect(() => {
+    if (isAuthorized && expires && now >= expires) setIsAuthorized(false);
+  }, [now, expires, isAuthorized]);
+
+  const copyId = async () => {
+    try {
+      await navigator.clipboard.writeText(deviceId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
   };
 
-  const handleLiveClick = (e, user) => {
-    if (!isAuthorized) {
-      e.preventDefault();
-      alert(`⚠️ Yayına gitmek için admine ödeme yapın.\n\nCihaz ID'niz: ${deviceId}\n\nBu ID'yi admine DM'den gönderin.`);
-    }
+  const handleLiveClick = (e) => {
+    if (!isAuthorized) e.preventDefault();
   };
 
   async function load() {
@@ -127,83 +168,108 @@ function Home() {
 
   if (redirecting) {
     return (
-      <div style={{ ...styles.page, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column" }}>
-        <div style={{ fontSize: "4rem", marginBottom: "20px" }}>🚀</div>
-        <h2 style={{ color: "#4ade80", marginBottom: "10px" }}>Cihaz Onaylı!</h2>
-        <p style={{ color: "#8b9bb0" }}>@{targetUser} yayınına yönlendiriliyorsunuz...</p>
+      <div className="app center">
+        <div className="panel">
+          <h2>Cihaz onaylandı</h2>
+          <p style={{ margin: 0 }}>@{targetUser} yayınına yönlendiriliyorsun…</p>
+        </div>
       </div>
     );
   }
 
   if (isAuthorized === null) {
-    return <div style={{ ...styles.page, ...styles.center }} />;
+    return <div className="app center" />;
   }
 
   if (isAuthorized === false) {
     return (
-      <div style={{ ...styles.page, ...styles.center }}>
-        <div style={styles.lockBox}>
-          <div style={{ fontSize: "1.4rem", fontWeight: "bold", color: "#f87171", marginBottom: 10 }}>
-            ⚠️ Cihaz Doğrulanamadı
-          </div>
-          <div style={{ fontSize: "1rem", marginBottom: 20, color: "#fca5a5" }}>
-            Cihaz kimliği sistemde eşleşmedi. Yayına gitmek için admine ödeme yapın.
-          </div>
-          <div style={{ background: "rgba(0,0,0,0.3)", padding: "14px", borderRadius: "8px", marginBottom: 20, fontFamily: "monospace", fontSize: "1.2rem", color: "#fff", letterSpacing: "1px" }}>
-            {deviceId}
-          </div>
-          <button onClick={copyId} style={styles.copyBtn}>
-            📋 Cihaz ID Kopyala
-          </button>
+      <div className="app center">
+        <div className="panel">
+          <h2>Bu cihazın erişimi yok</h2>
+          <p>Erişim almak ya da süreni uzatmak için aşağıdaki ID&apos;yi admine gönder.</p>
+          <div className="idbox">{deviceId}</div>
+          <button onClick={copyId} className="primary">{copied ? "Kopyalandı" : "ID'yi kopyala"}</button>
         </div>
       </div>
     );
   }
 
-  return (
-    <div style={styles.page}>
-      <header style={styles.header}>
-        <h1 style={styles.h1}>
-          🎁 <span style={{ color: isMor ? "#b66dff" : isAll ? "#4cc9f0" : "#f5c542" }}>{isMor ? "Mor" : isAll ? "Tümü" : "20/16"}</span> Sandık Canlı
-        </h1>
-        <div style={{ display: "flex", gap: 8 }}>
-          <span style={styles.badge}>{status === "canlı" ? "● canlı" : "● " + status}</span>
-          <span style={styles.badge}>{boxes.length} sandık</span>
-        </div>
-      </header>
+  const accessLeft = expires ? expires - now : null;
+  const tone = accessLeft != null ? accessTone(accessLeft) : "ok";
+  const kind = isMor ? "mor" : isAll ? "all" : "normal";
+  const TABS = [
+    ["normal", "20/16", normalV.length],
+    ["mor", "Mor", morV.length],
+    ["all", "Tümü", allV.length],
+  ];
 
-      <div style={styles.tabs}>
-        <button onClick={() => setTab("normal")} style={{ ...styles.tab, ...(!isMor && !isAll ? styles.tabOn : {}) }}>20/16 ({normalV.length})</button>
-        <button onClick={() => setTab("mor")} style={{ ...styles.tab, ...(isMor ? styles.tabMor : {}) }}>Mor ({morV.length})</button>
-        <button onClick={() => setTab("all")} style={{ ...styles.tab, ...(isAll ? styles.tabAll : {}) }}>Tümü ({allV.length})</button>
+  return (
+    <div className="app">
+      <div className="top">
+        <div className="bar">
+          <div className="brand">
+            <span className={`dot${status === "canlı" ? " on" : ""}`} title={status} />
+            <h1>Sandık</h1>
+          </div>
+          {accessLeft != null && (
+            <button className={`access ${tone}`} onClick={() => setSheetOpen((o) => !o)} aria-expanded={sheetOpen} aria-label="Erişim süresi">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+                <circle cx="12" cy="13" r="8" />
+                <path d="M12 9v4l2.5 2M9 2h6" />
+              </svg>
+              {fmtAccess(accessLeft)}
+            </button>
+          )}
+        </div>
+
+        {sheetOpen && accessLeft != null && (
+          <div className="sheet">
+            <div className="sheet-inner">
+              <div className="sheet-row"><span>Erişimin bitiyor</span><b>{new Date(expires * 1000).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" })}</b></div>
+              <div className="sheet-row"><span>Kalan süre</span><b>{fmtAccess(accessLeft)}</b></div>
+              <div className="sheet-row"><span>Cihaz ID</span><b>{deviceId}</b></div>
+              <p className="sheet-note">Süre bitince sandıklar kilitlenir. Uzatmak için ID&apos;ni admine gönder.</p>
+              <button className="ghost" onClick={copyId}>{copied ? "Kopyalandı" : "ID'yi kopyala"}</button>
+            </div>
+          </div>
+        )}
+
+        <nav className="tabs" role="tablist" aria-label="Sandık türü">
+          {TABS.map(([k, label, n]) => (
+            <button key={k} role="tab" aria-selected={tab === k} data-kind={k} className="tab" onClick={() => setTab(k)}>
+              {label}
+              <span className="n">{n}</span>
+            </button>
+          ))}
+        </nav>
       </div>
 
-      <main style={styles.main}>
+      <main className="list" data-kind={kind}>
         {!boxes.length && (
-          <p style={styles.empty}>Henüz {isMor ? "mor sandık" : isAll ? "sandık" : "20/16"} yok. Bot API&apos;ye yazınca burada görünecek.</p>
+          <div className="empty">
+            <b>{isMor ? "Mor sandık yok" : isAll ? "Sandık yok" : "20/16 sandık yok"}</b>
+            Bot yeni bir sandık gönderince burada görünecek. Sayfa kendiliğinden yenilenir.
+          </div>
         )}
         {boxes.map((b) => {
           const live = safeLive(b);
           const left = leftOf(b, now);
           const ended = left <= 0;
           return (
-            <article key={b.id} style={{ ...styles.card, ...(isMor ? styles.cardMor : {}), ...(ended ? { opacity: 0.4, filter: "grayscale(0.8)" } : {}) }}>
-              <div style={styles.row}>
-                <a href={live} target="_blank" rel="noreferrer" style={styles.user} onClick={(e) => handleLiveClick(e, b.user)}>
-                  {b.flag ? `${b.flag} ` : ""}@{b.user}
-                </a>
-                <span style={{ ...styles.meta, color: ended ? "#8b9bb0" : "#f5c542", fontWeight: 700 }}>
-                  {ended ? "bitti" : `⏳ ${fmt(left)}`}
-                </span>
+            <article key={b.id} className={`card${ended ? " ended" : ""}`} data-kind={kind}>
+              <Ring left={left} total={durOf(b)} ended={ended} />
+              <div className="info">
+                <div className="who">
+                  <a href={live} target="_blank" rel="noreferrer" onClick={handleLiveClick}>
+                    {b.flag ? `${b.flag} ` : ""}@{b.user}
+                  </a>
+                  <span className="ratio">{b.coins ?? "?"}/{b.people ?? "?"}</span>
+                </div>
+                <div className="sub">coin / kişi · {b.viewers ?? "?"} izleyici</div>
               </div>
-              <div style={styles.stats}>
-                <div style={styles.stat}><b>{b.coins ?? "?"}</b><span>coin</span></div>
-                <div style={styles.stat}><b>{b.people ?? "?"}</b><span>kişi</span></div>
-                <div style={styles.stat}><b>{b.viewers ?? "?"}</b><span>izleyici</span></div>
-              </div>
-              {b.comment ? <div dir="auto" style={styles.comment}>💬 {b.comment}</div> : null}
-              <a href={live} target="_blank" rel="noreferrer" onClick={(e) => handleLiveClick(e, b.user)} style={{ ...styles.btn, ...(isMor ? styles.btnMor : {}) }}>
-                🔗 Yayına Git
+              {b.comment ? <p dir="auto" className="comment">{b.comment}</p> : null}
+              <a href={live} target="_blank" rel="noreferrer" onClick={handleLiveClick} className="go">
+                {ended ? "Yayına yine de git" : "Yayına git"}
               </a>
             </article>
           );
@@ -215,36 +281,8 @@ function Home() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<div style={{ color: "white", textAlign: "center", marginTop: 50 }}>Yükleniyor...</div>}>
+    <Suspense fallback={<div className="app center" />}>
       <Home />
     </Suspense>
   );
 }
-
-const styles = {
-  page: { minHeight: "100vh", margin: 0, fontFamily: 'system-ui, "Segoe UI", sans-serif', background: "radial-gradient(1200px 600px at 10% -10%, #1a2740 0%, #0b0f14 55%)", color: "#e8eef6" },
-  center: { minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, boxSizing: "border-box" },
-  lockBox: { width: "100%", maxWidth: 420, background: "#2a1520", border: "2px solid #ef4444", borderRadius: 16, padding: 24, textAlign: "center" },
-  alertBox: { background: "#2a1520", borderBottom: "2px solid #ef4444", padding: "20px", textAlign: "center", position: "sticky", top: 0, zIndex: 50 },
-  copyBtn: { background: "#fff", color: "#e63946", border: "none", padding: "10px 20px", borderRadius: "8px", fontWeight: "bold", cursor: "pointer", fontSize: "0.9rem", width: "100%", maxWidth: "300px" },
-  header: { position: "sticky", top: 0, zIndex: 10, display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: "rgba(11,15,20,.9)", borderBottom: "1px solid #243041" },
-  h1: { margin: 0, fontSize: "1.15rem" },
-  badge: { fontSize: ".75rem", padding: "4px 10px", borderRadius: 999, border: "1px solid #243041", color: "#8b9bb0" },
-  main: { maxWidth: 720, margin: "0 auto", padding: 16 },
-  empty: { textAlign: "center", color: "#8b9bb0", padding: 48 },
-  card: { background: "linear-gradient(180deg, #182231, #141b24)", border: "1px solid #243041", borderRadius: 16, padding: 16, marginBottom: 12 },
-  row: { display: "flex", justifyContent: "space-between", gap: 8 },
-  user: { fontSize: "1.2rem", fontWeight: 700, color: "#e8eef6", textDecoration: "none" },
-  meta: { color: "#8b9bb0", fontSize: ".85rem" },
-  stats: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 12 },
-  stat: { background: "rgba(0,0,0,.25)", borderRadius: 12, padding: 10, textAlign: "center" },
-  btn: { display: "block", marginTop: 12, textAlign: "center", textDecoration: "none", background: "linear-gradient(90deg, #1f8f7e, #2bbbad)", color: "#04120f", fontWeight: 700, borderRadius: 12, padding: 12 },
-  tabs: { display: "flex", gap: 8, justifyContent: "center", padding: "14px 16px 0" },
-  tab: { cursor: "pointer", fontSize: ".9rem", fontWeight: 600, padding: "8px 18px", borderRadius: 999, border: "1px solid #243041", background: "transparent", color: "#8b9bb0" },
-  tabOn: { background: "#f5c542", color: "#1a1400", borderColor: "#f5c542" },
-  tabAll: { background: "#4cc9f0", color: "#06202a", borderColor: "#4cc9f0" },
-  tabMor: { background: "#b66dff", color: "#14061f", borderColor: "#b66dff" },
-  comment: { marginTop: 12, padding: "8px 12px", borderRadius: 10, background: "rgba(0,0,0,.25)", color: "#cfd8e6", fontSize: ".95rem", wordBreak: "break-word" },
-  cardMor: { background: "linear-gradient(180deg, #2a1b3d, #1c1328)", border: "1px solid #4a2f6b" },
-  btnMor: { background: "linear-gradient(90deg, #8f3fe0, #b66dff)", color: "#14061f" }
-};
