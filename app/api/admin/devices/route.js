@@ -1,4 +1,5 @@
 import { redis } from "../../../../lib/redis";
+import { listDevices } from "../../../../lib/devices";
 import { checkAdmin, DEVICE_RE } from "../../../../lib/auth";
 import { NextResponse } from "next/server";
 
@@ -14,14 +15,7 @@ export async function GET(req) {
   if (!a.ok) return deny(a);
 
   try {
-    const keys = await redis.keys("device:*");
-    const devices = await Promise.all(
-      keys.map(async (key) => {
-        const expires = await redis.get(key);
-        return { id: key.replace("device:", ""), expires: Number(expires) };
-      })
-    );
-    return NextResponse.json({ ok: true, devices });
+    return NextResponse.json({ ok: true, devices: await listDevices() });
   } catch (error) {
     return NextResponse.json({ ok: false, error: "Redis hatası" }, { status: 500 });
   }
@@ -44,12 +38,22 @@ export async function POST(req) {
   }
 }
 
+// DELETE ?device_id=...  -> tek cihaz
+// DELETE ?expired=1      -> süresi dolan tüm cihazlar
 export async function DELETE(req) {
   const a = await checkAdmin(req);
   if (!a.ok) return deny(a);
 
   try {
     const { searchParams } = new URL(req.url);
+
+    if (searchParams.get("expired") === "1") {
+      const now = Math.floor(Date.now() / 1000);
+      const dead = (await listDevices()).filter((d) => d.expires <= now);
+      if (dead.length) await redis.del(...dead.map((d) => `device:${d.id}`));
+      return NextResponse.json({ ok: true, removed: dead.length });
+    }
+
     const device_id = searchParams.get("device_id") || "";
     if (!DEVICE_RE.test(device_id)) {
       return NextResponse.json({ ok: false, error: "Geçersiz device_id" }, { status: 400 });
