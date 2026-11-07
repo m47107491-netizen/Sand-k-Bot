@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req) {
-  const a = checkApiSecret(req);
+  const a = await checkApiSecret(req);
   if (!a.ok) return NextResponse.json({ error: a.error }, { status: a.status });
 
   try {
