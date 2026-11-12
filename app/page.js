@@ -2,6 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { resolveUser } from "../lib/linktoken";
 
 const DEFAULT_DUR = 120;
 const MAX_DUR = 900;
@@ -102,7 +103,7 @@ function Home() {
     }
     setDeviceId(did);
 
-    const u = searchParams.get("u");
+    const u = resolveUser(searchParams.get("u"));
     if (u) setTargetUser(u);
 
     fetch(`/api/check?device=${did}`, { cache: "no-store" })
@@ -175,7 +176,7 @@ function Home() {
       <div className="app center">
         <div className="panel">
           <h2>Cihaz onaylandı</h2>
-          <p style={{ margin: 0 }}>@{targetUser} yayınına yönlendiriliyorsun…</p>
+          <p style={{ margin: 0 }}>Yayına yönlendiriliyorsun…</p>
         </div>
       </div>
     );
