@@ -79,6 +79,8 @@ function Home() {
   const [deviceId, setDeviceId] = useState("");
   const [isAuthorized, setIsAuthorized] = useState(null);
   const [expires, setExpires] = useState(null);
+  const [isFree, setIsFree] = useState(false);
+  const [nextFree, setNextFree] = useState(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
@@ -107,6 +109,8 @@ function Home() {
       .then((r) => r.json())
       .then((data) => {
         setIsAuthorized(data.ok);
+        setIsFree(!!data.free);
+        if (!data.ok && data.nextFree) setNextFree(Number(data.nextFree));
         if (data.ok && data.expires) setExpires(Number(data.expires));
 
         if (data.ok && u) {
@@ -187,6 +191,9 @@ function Home() {
         <div className="panel">
           <h2>Bu cihazın erişimi yok</h2>
           <p>Erişim almak ya da süreni uzatmak için aşağıdaki ID&apos;yi admine gönder.</p>
+          {nextFree && (
+            <p>Sonraki ücretsiz pencere: <b>{new Date(nextFree * 1000).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" })}</b> (2 günde bir 12 saat)</p>
+          )}
           <div className="idbox">{deviceId}</div>
           <button onClick={copyId} className="primary">{copied ? "Kopyalandı" : "ID'yi kopyala"}</button>
         </div>
@@ -225,10 +232,10 @@ function Home() {
         {sheetOpen && accessLeft != null && (
           <div className="sheet">
             <div className="sheet-inner">
-              <div className="sheet-row"><span>Erişimin bitiyor</span><b>{new Date(expires * 1000).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" })}</b></div>
+              <div className="sheet-row"><span>{isFree ? "Ücretsiz pencere bitiyor" : "Erişimin bitiyor"}</span><b>{new Date(expires * 1000).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" })}</b></div>
               <div className="sheet-row"><span>Kalan süre</span><b>{fmtAccess(accessLeft)}</b></div>
               <div className="sheet-row"><span>Cihaz ID</span><b>{deviceId}</b></div>
-              <p className="sheet-note">Süre bitince sandıklar kilitlenir. Uzatmak için ID&apos;ni admine gönder.</p>
+              <p className="sheet-note">Süre bitince sandıklar kilitlenir. 2 günde bir 12 saat ücretsiz açılır; sürekli erişim için ID&apos;ni admine gönder.</p>
               <button className="ghost" onClick={copyId}>{copied ? "Kopyalandı" : "ID'yi kopyala"}</button>
             </div>
           </div>
