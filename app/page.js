@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { resolveUser } from "../lib/linktoken";
 
@@ -77,15 +77,17 @@ function Home() {
   const [status, setStatus] = useState("yükleniyor");
   const [now, setNow] = useState(Date.now() / 1000);
 
-  const [deviceId, setDeviceId] = useState("");
+  const [keyVal, setKeyVal] = useState("");
+  const [keyInput, setKeyInput] = useState("");
+  const [keyErr, setKeyErr] = useState("");
   const [isAuthorized, setIsAuthorized] = useState(null);
   const [expires, setExpires] = useState(null);
   const [isFree, setIsFree] = useState(false);
   const [nextFree, setNextFree] = useState(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const [targetUser, setTargetUser] = useState("");
+  const redirectedRef = useRef(false);
 
   const isMor = tab === "mor";
   const isAll = tab === "all";
@@ -95,26 +97,22 @@ function Home() {
   const allV = alive(all);
   const boxes = isMor ? morV : isAll ? allV : normalV;
 
-  useEffect(() => {
-    let did = localStorage.getItem("sandik_device_id");
-    if (!did) {
-      did = "device_" + Math.floor(100000000 + Math.random() * 900000000);
-      localStorage.setItem("sandik_device_id", did);
-    }
-    setDeviceId(did);
-
-    const u = resolveUser(searchParams.get("u"));
-    if (u) setTargetUser(u);
-
-    fetch(`/api/check?device=${did}`, { cache: "no-store" })
+  const verify = (k, u) =>
+    fetch(`/api/check?key=${encodeURIComponent(k || "")}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         setIsAuthorized(data.ok);
         setIsFree(!!data.free);
-        if (!data.ok && data.nextFree) setNextFree(Number(data.nextFree));
+        if (!data.ok) {
+          if (data.nextFree) setNextFree(Number(data.nextFree));
+          if (k && data.revoked) {
+            setKeyErr("Key geçersiz, süresi dolmuş veya iptal edilmiş.");
+            try { localStorage.removeItem("sandik_key"); } catch {}
+          }
+        }
         if (data.ok && data.expires) setExpires(Number(data.expires));
-
-        if (data.ok && u) {
+        if (data.ok && u && !redirectedRef.current) {
+          redirectedRef.current = true;
           setRedirecting(true);
           setTimeout(() => {
             window.location.href = `https://www.tiktok.com/@${encodeURIComponent(u)}/live`;
@@ -122,20 +120,31 @@ function Home() {
         }
       })
       .catch(() => setIsAuthorized(false));
+
+  useEffect(() => {
+    let k = "";
+    try { k = localStorage.getItem("sandik_key") || ""; } catch {}
+    setKeyVal(k);
+    const u = resolveUser(searchParams.get("u"));
+    if (u) setTargetUser(u);
+    verify(k, u);
+    const t = setInterval(() => verify(k, u), 180000); // 3 dk'da bir: takipten çıkan hızlı düşer
+    return () => clearInterval(t);
   }, [searchParams]);
+
+  const submitKey = () => {
+    const k = keyInput.trim();
+    if (!k) return;
+    setKeyErr("");
+    try { localStorage.setItem("sandik_key", k); } catch {}
+    setKeyVal(k);
+    verify(k, resolveUser(searchParams.get("u")));
+  };
 
   // Erişim süresi bitince kilit ekranına dön
   useEffect(() => {
     if (isAuthorized && expires && now >= expires) setIsAuthorized(false);
   }, [now, expires, isAuthorized]);
-
-  const copyId = async () => {
-    try {
-      await navigator.clipboard.writeText(deviceId);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {}
-  };
 
   const handleLiveClick = (e) => {
     if (!isAuthorized) e.preventDefault();
@@ -175,7 +184,7 @@ function Home() {
     return (
       <div className="app center">
         <div className="panel">
-          <h2>Cihaz onaylandı</h2>
+          <h2>Key onaylandı</h2>
           <p style={{ margin: 0 }}>Yayına yönlendiriliyorsun…</p>
         </div>
       </div>
@@ -190,13 +199,23 @@ function Home() {
     return (
       <div className="app center">
         <div className="panel">
-          <h2>Bu cihazın erişimi yok</h2>
-          <p>Erişim almak ya da süreni uzatmak için aşağıdaki ID&apos;yi admine gönder.</p>
+          <h2>Giriş için key gerekli</h2>
+          <p>Key almak için Telegram botuna <b>/key</b> yaz.</p>
+          {keyErr && <p style={{ color: "#f87171" }}>{keyErr}</p>}
           {nextFree && (
             <p>Sonraki ücretsiz pencere: <b>{new Date(nextFree * 1000).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" })}</b></p>
           )}
-          <div className="idbox">{deviceId}</div>
-          <button onClick={copyId} className="primary">{copied ? "Kopyalandı" : "ID'yi kopyala"}</button>
+          <input
+            className="idbox"
+            value={keyInput}
+            onChange={(e) => setKeyInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submitKey()}
+            placeholder="Key'ini yapıştır"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+          <button onClick={submitKey} className="primary">Giriş yap</button>
         </div>
       </div>
     );
@@ -235,9 +254,7 @@ function Home() {
             <div className="sheet-inner">
               <div className="sheet-row"><span>{isFree ? "Ücretsiz pencere bitiyor" : "Erişimin bitiyor"}</span><b>{new Date(expires * 1000).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" })}</b></div>
               <div className="sheet-row"><span>Kalan süre</span><b>{fmtAccess(accessLeft)}</b></div>
-              <div className="sheet-row"><span>Cihaz ID</span><b>{deviceId}</b></div>
-              <p className="sheet-note">Süre bitince sandıklar kilitlenir. Sürekli erişim için ID&apos;ni admine gönder.</p>
-              <button className="ghost" onClick={copyId}>{copied ? "Kopyalandı" : "ID'yi kopyala"}</button>
+              <p className="sheet-note">Süre bitince sandıklar kilitlenir. Key'in 1 saatliktir; takipten çıkarsan iptal edilir.</p>
             </div>
           </div>
         )}
