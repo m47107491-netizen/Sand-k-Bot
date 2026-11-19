@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 
 const DURATIONS = [
+  { label: "1 Saat", sec: 3600 },
   { label: "12 Saat", sec: 12 * 3600 },
   { label: "1 Gün", sec: 86400 },
   { label: "3 Gün", sec: 3 * 86400 },
@@ -29,14 +30,15 @@ function fmtLeft(expires, now) {
 export default function AdminPage() {
   const [auth, setAuth] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [tab, setTab] = useState("devices");
+  const [booting, setBooting] = useState(true);
+  const [tab, setTab] = useState("keys");
   const [toast, setToast] = useState(null);
 
-  const [devices, setDevices] = useState([]);
+  const [keys, setKeys] = useState([]);
   const [search, setSearch] = useState("");
-  const [filterMode, setFilterMode] = useState("all"); // all | active | expired
   const [newId, setNewId] = useState("");
-  const [newDuration, setNewDuration] = useState(DURATIONS[4].sec);
+  const [lastKey, setLastKey] = useState("");
+  const [newDuration, setNewDuration] = useState(DURATIONS[0].sec);
   const [now, setNow] = useState(Math.floor(Date.now() / 1000));
 
   const [kind, setKind] = useState("boxes");
@@ -61,6 +63,7 @@ export default function AdminPage() {
       const data = await res.json().catch(() => ({}));
       if (res.status === 401) {
         setIsLoggedIn(false);
+        try { sessionStorage.removeItem("admin_pass"); } catch {}
         notify("Oturum geçersiz, tekrar giriş yap", "err");
       }
       return { res, data };
@@ -68,9 +71,9 @@ export default function AdminPage() {
     [auth, headers]
   );
 
-  const loadDevices = useCallback(async () => {
-    const { data } = await api("/api/admin/devices");
-    if (data.ok) setDevices(data.devices);
+  const loadKeys = useCallback(async () => {
+    const { data } = await api("/api/admin/keys");
+    if (data.ok) setKeys(data.keys);
   }, [api]);
 
   const loadBoxes = useCallback(
@@ -88,20 +91,41 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!isLoggedIn) return;
-    if (tab === "devices") loadDevices();
+    if (tab === "keys") loadKeys();
     if (tab === "boxes") loadBoxes(kind);
     if (tab === "system") loadStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, kind, isLoggedIn]);
 
+  // Sayfa yenilenince oturumu geri yükle (şifre sadece bu sekmenin sessionStorage'ında durur)
+  useEffect(() => {
+    let saved = "";
+    try { saved = sessionStorage.getItem("admin_pass") || ""; } catch {}
+    if (!saved) { setBooting(false); return; }
+    fetch("/api/admin/keys", { headers: headers(saved), cache: "no-store" })
+      .then((r) => r.json().catch(() => ({})))
+      .then((data) => {
+        if (data.ok) {
+          setAuth(saved);
+          setKeys(data.keys);
+          setIsLoggedIn(true);
+        } else {
+          try { sessionStorage.removeItem("admin_pass"); } catch {}
+        }
+      })
+      .catch(() => {})
+      .finally(() => setBooting(false));
+  }, [headers]);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/admin/devices", { headers: headers(auth), cache: "no-store" });
+      const res = await fetch("/api/admin/keys", { headers: headers(auth), cache: "no-store" });
       const data = await res.json().catch(() => ({}));
       if (data.ok) {
-        setDevices(data.devices);
+        setKeys(data.keys);
         setIsLoggedIn(true);
+        try { sessionStorage.setItem("admin_pass", auth); } catch {}
       } else if (res.status === 503 || res.status === 429) {
         notify(data.error || "Sunucu hatası", "err");
       } else {
@@ -113,67 +137,47 @@ export default function AdminPage() {
   };
 
   const logout = () => {
+    try { sessionStorage.removeItem("admin_pass"); } catch {}
     setIsLoggedIn(false);
     setAuth("");
-    setDevices([]);
+    setKeys([]);
     setBoxes([]);
     setStats(null);
   };
 
-  // ---- Cihaz işlemleri ----
-  const setExpiry = async (id, expires) => {
-    const { res } = await api("/api/admin/devices", {
-      method: "POST",
-      body: JSON.stringify({ device_id: id, expires }),
-    });
-    return res.ok;
-  };
-
+  // ---- Key işlemleri ----
   const handleAdd = async (e) => {
     e.preventDefault();
-    const raw = newId.trim();
-    if (!raw) return;
-    const did = raw.startsWith("device_") ? raw : `device_${raw}`;
-    const existing = devices.find((d) => d.id === did);
-    // Zaten aktifse süreyi mevcut bitişin üstüne ekle
-    const base = existing && existing.expires > now ? existing.expires : now;
-    if (await setExpiry(did, base + Number(newDuration))) {
+    const { res, data } = await api("/api/admin/keys", {
+      method: "POST",
+      body: JSON.stringify({ action: "create", tiktok: newId.trim(), duration: Number(newDuration) }),
+    });
+    if (res.ok && data.key) {
       setNewId("");
-      notify(existing ? "Süre uzatıldı" : "Cihaz eklendi");
-      loadDevices();
-    } else notify("Eklenemedi (ID: harf/rakam/_/- , en fazla 64)", "err");
+      setLastKey(data.key);
+      try { await navigator.clipboard.writeText(data.key); } catch {}
+      notify("Key üretildi (kopyalandı)");
+      loadKeys();
+    } else notify(data.error || "Üretilemedi", "err");
   };
 
-  const extend = async (dev, sec) => {
-    const base = dev.expires > now ? dev.expires : now;
-    if (await setExpiry(dev.id, base + sec)) {
+  const extend = async (k, sec) => {
+    const base = k.expires > now ? k.expires : now;
+    const { res } = await api("/api/admin/keys", {
+      method: "POST",
+      body: JSON.stringify({ action: "extend", key: k.id, expires: base + sec }),
+    });
+    if (res.ok) {
       notify("Süre uzatıldı");
-      loadDevices();
+      loadKeys();
     } else notify("Hata", "err");
   };
 
-  const expireNow = async (dev) => {
-    if (!confirm(`${dev.id} hemen sonlandırılsın mı?`)) return;
-    if (await setExpiry(dev.id, 1)) {
-      notify("Süre sonlandırıldı");
-      loadDevices();
-    }
-  };
-
-  const deleteDevice = async (id) => {
-    if (!confirm(`${id} silinsin mi?`)) return;
-    await api(`/api/admin/devices?device_id=${encodeURIComponent(id)}`, { method: "DELETE" });
-    notify("Silindi");
-    loadDevices();
-  };
-
-  const clearExpired = async () => {
-    const n = devices.filter((d) => d.expires <= now).length;
-    if (!n) return notify("Süresi dolan cihaz yok");
-    if (!confirm(`${n} süresi dolmuş cihaz silinsin mi?`)) return;
-    const { data } = await api("/api/admin/devices?expired=1", { method: "DELETE" });
-    notify(`${data.removed ?? 0} cihaz silindi`);
-    loadDevices();
+  const revoke = async (k) => {
+    if (!confirm(`${k.id} iptal edilsin mi?`)) return;
+    await api(`/api/admin/keys?key=${encodeURIComponent(k.id)}`, { method: "DELETE" });
+    notify("Key iptal edildi");
+    loadKeys();
   };
 
   const copy = async (text) => {
@@ -185,11 +189,11 @@ export default function AdminPage() {
     }
   };
 
-  const exportDevices = () => {
-    const blob = new Blob([JSON.stringify(devices, null, 2)], { type: "application/json" });
+  const exportKeys = () => {
+    const blob = new Blob([JSON.stringify(keys, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `cihazlar-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `keyler-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -213,18 +217,19 @@ export default function AdminPage() {
   };
 
   const counts = useMemo(() => {
-    const active = devices.filter((d) => d.expires > now).length;
-    const soon = devices.filter((d) => d.expires > now && d.expires - now < 86400).length;
-    return { total: devices.length, active, expired: devices.length - active, soon };
-  }, [devices, now]);
+    const active = keys.filter((d) => d.expires > now).length;
+    const soon = keys.filter((d) => d.expires > now && d.expires - now < 600).length;
+    return { total: keys.length, active, soon };
+  }, [keys, now]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return [...devices]
-      .filter((d) => (q ? d.id.toLowerCase().includes(q) : true))
-      .filter((d) => (filterMode === "active" ? d.expires > now : filterMode === "expired" ? d.expires <= now : true))
+    return [...keys]
+      .filter((d) => (q ? `${d.id} ${d.tiktok}`.toLowerCase().includes(q) : true))
       .sort((a, b) => b.expires - a.expires);
-  }, [devices, search, filterMode, now]);
+  }, [keys, search]);
+
+  if (booting) return <div style={styles.page} />;
 
   if (!isLoggedIn) {
     return (
@@ -251,63 +256,57 @@ export default function AdminPage() {
         </div>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-          {[["devices", "📱 Cihazlar"], ["boxes", "📦 Sandıklar"], ["system", "🛠 Sistem"]].map(([k, l]) => (
+          {[["keys", "🔑 Keyler"], ["boxes", "📦 Sandıklar"], ["system", "🛠 Sistem"]].map(([k, l]) => (
             <button key={k} onClick={() => setTab(k)} style={{ ...styles.tab, ...(tab === k ? styles.tabOn : {}) }}>{l}</button>
           ))}
         </div>
 
-        {tab === "devices" && (
+        {tab === "keys" && (
           <>
             <div style={styles.statRow}>
-              <Stat label="Toplam" value={counts.total} />
-              <Stat label="Aktif" value={counts.active} color="#10b981" />
-              <Stat label="24 saatte bitecek" value={counts.soon} color="#f5c542" />
-              <Stat label="Süresi dolmuş" value={counts.expired} color="#ef4444" />
+              <Stat label="Aktif key" value={counts.active} color="#10b981" />
+              <Stat label="10 dk içinde bitecek" value={counts.soon} color="#f5c542" />
             </div>
 
             <form onSubmit={handleAdd} style={styles.addForm}>
-              <input type="text" placeholder="device_123456" value={newId} onChange={(e) => setNewId(e.target.value)} style={{ ...styles.input, flex: "2 1 180px", width: "auto" }} required />
+              <input type="text" placeholder="TikTok kullanıcı adı (isteğe bağlı)" value={newId} onChange={(e) => setNewId(e.target.value)} style={{ ...styles.input, flex: "2 1 180px", width: "auto" }} />
               <select value={newDuration} onChange={(e) => setNewDuration(e.target.value)} style={{ ...styles.input, flex: "1 1 120px", width: "auto" }}>
                 {DURATIONS.map((d) => <option key={d.sec} value={d.sec}>{d.label}</option>)}
               </select>
-              <button type="submit" style={{ ...styles.btn, background: "#10b981" }}>➕ Ekle / Uzat</button>
+              <button type="submit" style={{ ...styles.btn, background: "#10b981" }}>🔑 Key Üret</button>
             </form>
 
+            {lastKey && (
+              <div style={{ ...styles.addForm, marginBottom: 14 }}>
+                <span style={{ color: "#8b9bb0" }}>Son üretilen:</span>{" "}
+                <b style={{ cursor: "pointer", wordBreak: "break-all" }} onClick={() => copy(lastKey)} title="Kopyala">{lastKey}</b>
+              </div>
+            )}
+
             <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-              <input type="search" placeholder="🔎 Cihaz ara..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ ...styles.input, flex: "2 1 180px", width: "auto" }} />
-              <select value={filterMode} onChange={(e) => setFilterMode(e.target.value)} style={{ ...styles.input, flex: "1 1 120px", width: "auto" }}>
-                <option value="all">Hepsi</option>
-                <option value="active">Aktif</option>
-                <option value="expired">Süresi dolmuş</option>
-              </select>
-              <button onClick={loadDevices} style={styles.btnSm}>🔄 Yenile</button>
-              <button onClick={exportDevices} style={styles.btnSm}>⬇ JSON</button>
-              <button onClick={clearExpired} style={{ ...styles.btnSm, background: "#b45309" }}>🧹 Dolanları Sil</button>
+              <input type="search" placeholder="🔎 Key / TikTok ara..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ ...styles.input, flex: "2 1 180px", width: "auto" }} />
+              <button onClick={loadKeys} style={styles.btnSm}>🔄 Yenile</button>
+              <button onClick={exportKeys} style={styles.btnSm}>⬇ JSON</button>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {visible.length === 0 && <p style={{ color: "#8b9bb0" }}>Kayıt bulunamadı.</p>}
-              {visible.map((dev) => {
-                const isActive = dev.expires > now;
-                return (
-                  <div key={dev.id} style={{ ...styles.deviceCard, opacity: isActive ? 1 : 0.6 }}>
-                    <div style={{ minWidth: 0 }}>
-                      <b style={{ fontSize: "1.05rem", cursor: "pointer", wordBreak: "break-all" }} title="Kopyala" onClick={() => copy(dev.id)}>{dev.id}</b>
-                      <div style={{ fontSize: "0.85rem", color: "#8b9bb0", marginTop: 4 }}>
-                        Bitiş: {dev.expires ? fmtDate(dev.expires) : "-"} ·{" "}
-                        <span style={{ color: isActive ? "#10b981" : "#ef4444" }}>{fmtLeft(dev.expires, now)}</span>
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                      <button onClick={() => extend(dev, 86400)} style={styles.btnXs}>+1g</button>
-                      <button onClick={() => extend(dev, 7 * 86400)} style={styles.btnXs}>+1h</button>
-                      <button onClick={() => extend(dev, 30 * 86400)} style={styles.btnXs}>+1ay</button>
-                      {isActive && <button onClick={() => expireNow(dev)} style={{ ...styles.btnXs, background: "#b45309" }}>⏹</button>}
-                      <button onClick={() => deleteDevice(dev.id)} style={{ ...styles.btnXs, background: "#ef4444" }}>🗑</button>
+              {visible.length === 0 && <p style={{ color: "#8b9bb0" }}>Aktif key yok. Süresi dolan key'ler otomatik silinir.</p>}
+              {visible.map((k) => (
+                <div key={k.id} style={styles.deviceCard}>
+                  <div style={{ minWidth: 0 }}>
+                    <b style={{ fontSize: "1.05rem", cursor: "pointer", wordBreak: "break-all" }} title="Kopyala" onClick={() => copy(k.id)}>{k.id}</b>
+                    <div style={{ fontSize: "0.85rem", color: "#8b9bb0", marginTop: 4 }}>
+                      {k.tiktok ? `@${k.tiktok} · ` : ""}{k.tg_id ? `TG ${k.tg_id} · ` : ""}
+                      Bitiş: {fmtDate(k.expires)} · <span style={{ color: "#10b981" }}>{fmtLeft(k.expires, now)}</span>
                     </div>
                   </div>
-                );
-              })}
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    <button onClick={() => extend(k, 3600)} style={styles.btnXs}>+1sa</button>
+                    <button onClick={() => extend(k, 86400)} style={styles.btnXs}>+1g</button>
+                    <button onClick={() => revoke(k)} style={{ ...styles.btnXs, background: "#ef4444" }}>⏹ İptal</button>
+                  </div>
+                </div>
+              ))}
             </div>
           </>
         )}
